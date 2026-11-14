@@ -1,5 +1,6 @@
 // Saisie d'un identifiant dans une page de connexion, à la demande du service Déclic.
 //
+// Aussi : ValiderPage(adresse, délai) appuie sur Entrée pour envoyer une question pré-remplie (IA).
 // Le service appelle SaisirIdentifiant(site, délai) sur le bus de session (après avoir ouvert la page, ou
 // depuis « Remplir ici » dans la barre).
 // Garde-fous :
@@ -24,6 +25,10 @@ const INTERFACE = `<node>
       <arg type="s" direction="in" name="site"/>
       <arg type="i" direction="in" name="delai"/>
     </method>
+    <method name="ValiderPage">
+      <arg type="s" direction="in" name="adresse"/>
+      <arg type="i" direction="in" name="delai"/>
+    </method>
   </interface>
 </node>`;
 
@@ -31,6 +36,10 @@ const NAVIGATEURS = /firefox|librewolf|waterfox|floorp|zen|chrom|brave|vivaldi|o
 const PAUSE_APRES_FOCUS_MS = 700; // laisse la page finir de se charger et placer le curseur
 const PAUSE_TOUCHE_MS = 12;
 const DELAI_MAX_S = 60;
+// Envoi d'une question pré-remplie (IA) : laisse la zone de saisie apparaître, puis Entrée, au plus 3 fois
+// tant que la page n'a pas changé (une fois la question partie, le site change d'adresse : on s'arrête).
+const PAUSE_AVANT_ENTREE_MS = 1500;
+const ESSAIS_ENTREE = 3;
 
 // Schéma partagé avec le service (declic/plateforme/linux.py : SCHEMA_COFFRE)
 const SCHEMA = Secret.Schema.new('app.declic.Identifiant', Secret.SchemaFlags.NONE, {
@@ -78,6 +87,56 @@ export class Saisie {
     SaisirIdentifiant(site, delai) {
         this._saisir(site, Math.max(1, Math.min(DELAI_MAX_S, delai)))
             .catch(e => Main.notify('Déclic : connexion abandonnée', e.message));
+    }
+
+    // Méthode D-Bus : appuie sur Entrée dans le navigateur quand il affiche cette page (question d'une IA)
+    ValiderPage(adresse, delai) {
+        this._validerPage(adresse, Math.max(1, Math.min(DELAI_MAX_S, delai)))
+            .catch(e => log(`Déclic : question non envoyée (${e.message})`));
+    }
+
+    // « https://claude.ai/new?q=… » → « https://claude.ai/new » : la requête peut être retirée par le site
+    _sansRequete(adresse) {
+        try {
+            const uri = GLib.Uri.parse(adresse, GLib.UriFlags.NONE);
+            return `${uri.get_scheme()}://${uri.get_host()}${uri.get_path() || '/'}`.toLowerCase();
+        } catch {
+            return null;
+        }
+    }
+
+    async _surLaPage(attendu) {
+        const fenetre = global.display.focus_window;
+        if (!this._navigateur(fenetre))
+            return null;
+        const url = await this._api.pageActive(fenetre.get_pid()).catch(() => null);
+        return url && this._sansRequete(url) === attendu && global.display.focus_window === fenetre ? fenetre : null;
+    }
+
+    async _validerPage(adresse, delai) {
+        const attendu = this._sansRequete(adresse);
+        if (!attendu)
+            throw new Error('adresse illisible');
+        this._jeton = (this._jeton ?? 0) + 1; // une nouvelle question remplace la précédente
+        const jeton = this._jeton;
+        const limite = GLib.get_monotonic_time() + delai * 1e6;
+        let fenetre = null;
+        while (!fenetre) {
+            if (this._annule || jeton !== this._jeton || GLib.get_monotonic_time() > limite)
+                throw new Error('la page de l\'IA n\'est pas apparue au premier plan');
+            fenetre = await this._surLaPage(attendu);
+            if (!fenetre)
+                await attendre(300);
+        }
+        for (let i = 0; i < ESSAIS_ENTREE; i++) {
+            await attendre(PAUSE_AVANT_ENTREE_MS);
+            if (this._annule || jeton !== this._jeton)
+                return;
+            // question déjà partie (le site a changé d'adresse), autre onglet ou autre fenêtre : on ne touche à rien
+            if (await this._surLaPage(attendu) !== fenetre)
+                return;
+            await this._touche(Clutter.KEY_Return, fenetre);
+        }
     }
 
     _navigateur(fenetre) {

@@ -247,6 +247,7 @@ export class Barre {
             return;
         }
         this._ouverte = true;
+        this._figerSurvol();
         this._idReglages = this._settings.connect('changed', (_s, cle) => {
             if (CLES_APPARENCE.includes(cle))
                 this._appliquerApparence();
@@ -280,7 +281,7 @@ export class Barre {
             return;
         this._etatGarde = garder ? this._etatAGarder() : null;
         this._ouverte = false;
-        for (const nom of ['_minuteur', '_minuteurToast']) {
+        for (const nom of ['_minuteur', '_minuteurToast', '_minuteurSurvol']) {
             if (this[nom]) {
                 GLib.source_remove(this[nom]);
                 this[nom] = 0;
@@ -529,9 +530,59 @@ export class Barre {
         }
     }
 
+    // Le clavier a la priorité : quand les lignes se reconstruisent sous une souris immobile
+    // (ouverture, frappe), le survol ne doit pas voler la sélection. Il ne compte qu'une fois
+    // le pointeur réellement déplacé depuis la dernière touche.
+    _figerSurvol() {
+        const [x, y] = global.get_pointer();
+        this._pointeurFige = {x, y};
+        // Un pointeur qui bouge à l'intérieur d'une ligne déjà survolée n'émet pas notify::hover :
+        // on surveille donc sa position tant que le survol est figé.
+        if (!this._minuteurSurvol) {
+            this._minuteurSurvol = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 80, () => {
+                if (this._ouverte && this._pointeurFige)
+                    this._verifierSurvol();
+                if (this._ouverte && this._pointeurFige)
+                    return GLib.SOURCE_CONTINUE;
+                this._minuteurSurvol = 0;
+                return GLib.SOURCE_REMOVE;
+            });
+        }
+    }
+
+    // Si le pointeur a bougé depuis la dernière touche, la ligne qu'il survole devient la sélection.
+    _verifierSurvol() {
+        if (!this._pointeurFige || !this._survolVoulu())
+            return;
+        if (this._actions) {
+            const i = this._actions.lignes.findIndex(l => l.hover);
+            if (i >= 0 && i !== this._actions.index) {
+                this._actions.index = i;
+                this._majActions();
+            }
+            return;
+        }
+        const i = this._lignes.findIndex(l => l.hover);
+        if (i >= 0 && i !== this._index) {
+            this._index = i;
+            this._aConfirmer = null;
+            this._majSelection();
+        }
+    }
+
+    _survolVoulu() {
+        if (!this._pointeurFige)
+            return true;
+        const [x, y] = global.get_pointer();
+        if (x === this._pointeurFige.x && y === this._pointeurFige.y)
+            return false;
+        this._pointeurFige = null;
+        return true;
+    }
+
     _brancherLigne(ligne, i, activer) {
         ligne.connect('notify::hover', () => {
-            if (ligne.hover && this._index !== i && !this._actions) {
+            if (ligne.hover && this._index !== i && !this._actions && this._survolVoulu()) {
                 this._index = i;
                 this._aConfirmer = null;
                 this._majSelection();
@@ -789,6 +840,10 @@ export class Barre {
         if (resultat.module === 'calcul') {
             liste.push({titre: 'Copier le calcul complet', icone: 'edit-copy-symbolic',
                 faire: () => this._copier(`${this._entree.get_text().trim()} = ${resultat.argument}`)});
+        } else if (resultat.module === 'fichiers') {
+            liste.push({titre: 'Afficher dans le dossier', icone: 'folder-open-symbolic',
+                faire: () => this._executer({...resultat, commande: 'fichiers.montrer', icone: 'folder-open-symbolic'}, resultat.argument)});
+            liste.push({titre: 'Copier le chemin', icone: 'edit-copy-symbolic', faire: () => this._copier(resultat.argument)});
         } else if (resultat.argument) {
             liste.push({titre: 'Copier le texte recherché', icone: 'edit-copy-symbolic', faire: () => this._copier(resultat.argument)});
         }
@@ -815,6 +870,7 @@ export class Barre {
             return `Saisir ${resultat.attend_argument}`;
         switch (resultat.module) {
         case 'app': return "Ouvrir l'application";
+        case 'fichiers': return 'Ouvrir';
         case 'calcul': return 'Copier la réponse';
         case 'liens': return 'Ouvrir dans le navigateur';
         case 'snippets': return 'Utiliser le snippet';
@@ -856,7 +912,7 @@ export class Barre {
                 [touche('Ctrl'), touche('↵')].forEach(t => boite.add_child(t));
             const ligne = new St.Button({style_class: 'declic-ligne', child: boite, x_expand: true, track_hover: true, can_focus: false});
             ligne.connect('notify::hover', () => {
-                if (ligne.hover && this._actions) {
+                if (ligne.hover && this._actions && this._survolVoulu()) {
                     this._actions.index = i;
                     this._majActions();
                 }
@@ -898,6 +954,8 @@ export class Barre {
 
     // --- Clavier ----------------------------------------------------------------------
     _touche() {
+        this._verifierSurvol();
+        this._figerSurvol();
         const [, symbole] = this._clavier.get_key();
         const [, presse, verrouille, bloque] = this._clavier.get_state();
         const etat = presse | verrouille | bloque;
@@ -1187,7 +1245,7 @@ export class Barre {
         } else {
             ligne = new St.Bin({style_class: 'declic-ligne', child: boite, x_expand: true, reactive: true, track_hover: true});
             ligne.connect('notify::hover', () => {
-                if (ligne.hover && this._index !== i && !this._actions) {
+                if (ligne.hover && this._index !== i && !this._actions && this._survolVoulu()) {
                     this._index = i;
                     this._majSelection();
                 }

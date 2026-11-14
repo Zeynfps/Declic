@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import threading
 from typing import Iterable, Optional
 
@@ -23,6 +24,10 @@ journal = logging.getLogger("declic")
 
 SCORE_SECOURS = 2.0  # en dessous : proposition de dernier recours (recherche web, IA)
 SEUIL = 40.0  # score minimal pour apparaître (sur 100) : écarte les correspondances trop lâches
+NIVEAU = 1000.0  # écart entre deux niveaux de la hiérarchie (applications > fichiers > fonctions)
+SEUIL_APPLI = 50.0  # une appli trouvée seulement par quelques lettres éparses descend parmi les fonctions
+SCORE_DIRECT = 95.0  # résultats de mots-clés explicites (« persee … », « gpt … », calcul) : toujours en tête
+SECTIONS = {1: "Fonctionnalités", 2: "Fichiers", 3: "Applications"}
 
 
 class Registre:
@@ -172,8 +177,12 @@ class Registre:
                 texte.score(requete, commande.titre),
                 0.9 * texte.meilleur_score(requete, commande.mots_cles),
             )
-            if base >= SEUIL:
-                resultats.append(self._resultat(commande, base * self.historique.bonus(commande.id)))
+            presque = texte.presque_identique(requete, (commande.titre,)) or \
+                texte.compacter(requete) in {texte.compacter(m) for m in commande.mots_cles if m}
+            if base >= SEUIL or presque:
+                r = self._resultat(commande, max(base, 90.0 if presque else 0.0) * self.historique.bonus(commande.id))
+                r.presque = presque
+                resultats.append(r)
 
         for module in self.modules:
             try:
@@ -183,6 +192,8 @@ class Registre:
                         continue
                     r.confirmer = r.confirmer or cible.confirmer
                     r.module = r.module or cible.module
+                    if r.module == "fichiers":
+                        r.presque = texte.presque_identique(requete, (r.titre, os.path.splitext(r.titre)[0]))
                     resultats.append(r)
             except Exception:
                 journal.exception("Module %s : recherche impossible", module.nom)
@@ -191,10 +202,37 @@ class Registre:
             if r.score >= SCORE_SECOURS and cle_favori(r.commande, r.argument) in cles_favoris:
                 r.favori = True
                 r.score *= 1.15
+            if r.score >= SCORE_SECOURS:
+                self._ranger(r)
         resultats.sort(key=lambda r: r.score, reverse=True)
         # Les propositions de dernier recours (recherche web, questions aux IA) restent toujours en bas de liste
         secours = [r for r in resultats if r.score < SCORE_SECOURS]
         return [r for r in resultats if r.score >= SCORE_SECOURS][:max(limite - len(secours), 0)] + secours
+
+    @staticmethod
+    def _ranger(r: Resultat) -> None:
+        """Hiérarchie de la recherche : applications, puis fichiers, puis fonctions.
+
+        Le score de pertinence (0–100, ×bonus d'usage) devient un score à l'intérieur de son niveau.
+        Elle saute quand le texte tapé est (presque) exactement le nom : la ligne passe tout en haut,
+        et les mots-clés explicites (« persee … », « gpt … », calcul, « vol 30 »…) y sont aussi.
+        """
+        pertinence = min(r.score, NIVEAU - 1)
+        if r.module == "app":
+            niveau, rang = (3, 3) if pertinence >= SEUIL_APPLI else (1, 3)
+        elif r.module == "fichiers":
+            niveau, rang = 2, 2
+        else:
+            niveau, rang = 1, 1
+            if pertinence >= SCORE_DIRECT and not r.presque:  # mot-clé explicite, calcul…
+                r.presque = True
+        if r.presque:
+            niveau = 4
+            r.section = "Calculatrice" if r.module == "calcul" else "Meilleur résultat"
+            pertinence += rang  # à égalité parfaite : application, puis fichier, puis fonction
+        else:
+            r.section = SECTIONS[niveau]
+        r.score = niveau * NIVEAU + pertinence
 
     @property
     def _favoris(self) -> Optional[Favoris]:

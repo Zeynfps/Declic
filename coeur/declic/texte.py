@@ -61,3 +61,41 @@ def score(requete: str, cible: str) -> float:
 
 def meilleur_score(requete: str, cibles) -> float:
     return max((score(requete, c) for c in cibles if c), default=0.0)
+
+
+def compacter(texte: str) -> str:
+    """Sans accents, casse, espaces ni ponctuation : « Wi-Fi » → « wifi »."""
+    return "".join(mots(texte))
+
+
+def distance(a: str, b: str, maximum: int) -> int:
+    """Distance d'édition (fautes de frappe : lettre en trop, en moins, changée ou deux lettres inversées).
+    S'arrête dès qu'elle dépasse « maximum » (renvoie alors maximum + 1)."""
+    if abs(len(a) - len(b)) > maximum:
+        return maximum + 1
+    avant, ligne = None, list(range(len(b) + 1))
+    for i in range(1, len(a) + 1):
+        nouvelle = [i] + [0] * len(b)
+        for j in range(1, len(b) + 1):
+            cout = 0 if a[i - 1] == b[j - 1] else 1
+            nouvelle[j] = min(ligne[j] + 1, nouvelle[j - 1] + 1, ligne[j - 1] + cout)
+            if avant is not None and i > 1 and j > 1 and a[i - 1] == b[j - 2] and a[i - 2] == b[j - 1]:
+                nouvelle[j] = min(nouvelle[j], avant[j - 2] + 1)
+        if min(nouvelle) > maximum:
+            return maximum + 1
+        avant, ligne = ligne, nouvelle
+    return ligne[-1]
+
+
+def presque_identique(requete: str, cibles) -> bool:
+    """Le texte tapé est (presque) exactement le nom : « firefox », « firfox », « wifi » pour « Wi-Fi ».
+    Une faute tolérée à partir de 4 lettres, deux à partir de 8."""
+    q = compacter(requete)
+    if not q:
+        return False
+    tolerance = 2 if len(q) >= 8 else 1 if len(q) >= 4 else 0
+    for cible in cibles:
+        c = compacter(cible) if cible else ""
+        if c and (q == c or (tolerance and distance(q, c, tolerance) <= tolerance)):
+            return True
+    return False

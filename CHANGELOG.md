@@ -1,5 +1,14 @@
 # Journal des versions
 
+## À venir
+
+- Recherche de fichiers et de dossiers par nom (index de GNOME), avec « Afficher dans le dossier » et
+  « Copier le chemin » dans les actions.
+- Résultats rangés par sections : Applications, puis Fichiers, puis Fonctionnalités ; un nom presque
+  identique à ce qui est tapé (une ou deux fautes) passe en « Meilleur résultat ».
+- Les questions posées à ChatGPT, Claude ou Gemini sont envoyées automatiquement une fois la page ouverte.
+- La ligne sous la souris ne vole plus la sélection quand la liste change sous un pointeur immobile.
+
 ## 0.1.0 — préversion
 
 Première version publique, pour GNOME 51.

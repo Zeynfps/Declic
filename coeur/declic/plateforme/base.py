@@ -21,6 +21,16 @@ class Application:
     mots_cles: tuple[str, ...] = field(default_factory=tuple)
 
 
+@dataclass
+class Fichier:
+    chemin: str  # chemin absolu
+    nom: str
+    dossier: bool = False
+    modifie: float = 0.0  # date de modification (secondes depuis 1970), 0 si inconnue
+    type_mime: str = ""
+    icone: str = ""  # nom d'icône du thème
+
+
 class Plateforme:
     nom = "inconnue"
 
@@ -76,6 +86,13 @@ class Plateforme:
     def ouvrir_corbeille(self) -> None:
         self._absent("ouvrir la corbeille")
 
+    def chercher_fichiers(self, mots: list[str], limite: int = 60) -> list[Fichier]:
+        """Fichiers et dossiers dont le nom contient tous les mots (déjà en minuscules, sans accents)."""
+        self._absent("chercher des fichiers")
+
+    def afficher_dans_dossier(self, chemin: str) -> None:
+        self._absent("afficher un fichier dans son dossier")
+
     # --- Bascules (renvoient le nouvel état : True = activé) -----------------------
     def basculer_theme_sombre(self) -> bool:
         self._absent("basculer le thème sombre")
@@ -119,6 +136,11 @@ class Plateforme:
         """Demande à l'interface de taper identifiant + mot de passe dans la page de connexion, si
         (et seulement si) la fenêtre active est un navigateur affichant une adresse du site enregistré."""
         self._absent("saisir un identifiant")
+
+    def valider_page(self, adresse: str, delai_s: int) -> None:
+        """Appuie sur Entrée dans le navigateur quand il affiche cette page (même site, même chemin) :
+        envoie la question pré-remplie d'une IA. Ne fait rien si la page a changé entre-temps."""
+        self._absent("valider la page")
 
     def adresse_page(self, pid: int) -> str | None:
         """Adresse de l'onglet affiché dans la fenêtre active du navigateur de ce processus.

@@ -6,14 +6,15 @@ Appuyez sur **Super+R** : une barre s'ouvre au centre de l'écran. Tapez quelque
 application, faire un calcul, chercher sur un site, poser une question à une IA, changer un réglage du système
 ou lancer une de vos automatisations, sans quitter le clavier.
 
-> **Préversion (alpha).** Fonctionne sur **GNOME 51** (Wayland). Les autres bureaux, Windows et les
-> applications pour téléphone ne sont pas encore disponibles.
+> **Préversion (alpha).** Fonctionne sur **GNOME 51** (Wayland). **Une version Windows arrive bientôt.**
+> Les autres bureaux et les applications pour téléphone ne sont pas encore disponibles.
 
 ## Ce que Déclic sait faire
 
 | | |
 |---|---|
 | **Applications** | Lancer n'importe quelle application installée |
+| **Fichiers** | Taper une partie du nom (`rapport fouille`) pour ouvrir un fichier ou un dossier, ou l'afficher dans son dossier (Ctrl+K) ; utilise l'index de GNOME |
 | **Calculatrice** | `15% de 240`, `(3+4)*2`, `100 km en miles`, nombres au format français ; Entrée copie le résultat |
 | **Liens de recherche** | Un mot-clé puis la recherche : `wiki Gergovie`, `scholar céramique`, `persee …`, `hal …`, `gallica …` ; ajoutez les vôtres avec le bouton **+** |
 | **Questions aux IA** | `gpt …`, `claude …`, `gemini …` ouvrent le navigateur avec la question ; toute recherche propose aussi « Demander à … » |
@@ -127,7 +128,8 @@ python3 -m declic chercher "15% de 240"   # recherche, comme dans la barre
 ## Feuille de route
 
 Voir [docs/feuille-de-route.md](docs/feuille-de-route.md). Prochaines étapes : historique du presse-papiers,
-changement de fenêtre, recherche de fichiers, puis déclencheurs envoyés par le téléphone (Android et iPhone).
+changement de fenêtre, puis déclencheurs envoyés par le téléphone (Android et iPhone).
+Une **version Windows** est en préparation.
 
 ## Licence
 

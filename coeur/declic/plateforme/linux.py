@@ -23,7 +23,7 @@ import gi
 gi.require_version("Gio", "2.0")
 from gi.repository import Gio, GLib  # noqa: E402
 
-from declic.plateforme.base import Application, NonPrisEnCharge, Plateforme  # noqa: E402
+from declic.plateforme.base import Application, Fichier, NonPrisEnCharge, Plateforme  # noqa: E402
 
 _TIMEOUT_MS = 5000
 DUREE_ACCESSIBILITE_S = 60  # l'accessibilité allumée par Déclic est recoupée après une minute sans usage
@@ -46,6 +46,8 @@ class PlateformeLinux(Plateforme):
         self._verrou_a11y = threading.Lock()
         self._a11y_par_declic = False
         self._minuteur_a11y = None
+        self._index_fichiers = None
+        self._verrou_fichiers = threading.Lock()
 
     # --- outils D-Bus ----------------------------------------------------------------
     @property
@@ -179,6 +181,84 @@ class PlateformeLinux(Plateforme):
     def ouvrir_corbeille(self) -> None:
         self.ouvrir("trash:///")
 
+    # Index de GNOME (LocalSearch, anciennement Tracker) : le nom de chaque fichier y est déjà,
+    # une recherche prend quelques millisecondes et ne touche pas au disque.
+    _SERVICES_INDEX = ("org.freedesktop.LocalSearch3", "org.freedesktop.Tracker3.Miner.Files")
+
+    def _requete_fichiers(self, nb_mots: int):
+        if self._index_fichiers is None:
+            try:
+                gi.require_version("Tsparql", "3.0")
+                from gi.repository import Tsparql
+            except (ImportError, ValueError) as exc:
+                raise NonPrisEnCharge("L'index de fichiers de GNOME (TinySPARQL) est absent.") from exc
+            connexion = None
+            for service in self._SERVICES_INDEX:
+                try:
+                    connexion = Tsparql.SparqlConnection.bus_new(service, None, None)
+                    break
+                except GLib.Error:
+                    continue
+            if connexion is None:
+                raise NonPrisEnCharge("L'index de fichiers de GNOME (LocalSearch) ne répond pas.")
+            self._index_fichiers = {"connexion": connexion, "requetes": {}}
+        requetes = self._index_fichiers["requetes"]
+        if nb_mots not in requetes:
+            filtres = " ".join(f"FILTER(CONTAINS(tracker:unaccent(LCASE(?nom)), ~m{i}))" for i in range(nb_mots))
+            sparql = (
+                "SELECT ?url ?nom ?modif ?mime WHERE { "
+                "GRAPH tracker:FileSystem { ?f a nfo:FileDataObject ; nfo:fileName ?nom ; nie:url ?url . "
+                "OPTIONAL { ?f nfo:fileLastModified ?modif } "
+                f"{filtres} }} "
+                "OPTIONAL { ?f nie:interpretedAs/nie:mimeType ?mime } "
+                "} ORDER BY DESC(?modif) LIMIT ~limite"
+            )
+            requetes[nb_mots] = self._index_fichiers["connexion"].query_statement(sparql, None)
+        return requetes[nb_mots]
+
+    def chercher_fichiers(self, mots: list[str], limite: int = 60) -> list[Fichier]:
+        mots = [m for m in mots if m][:6]
+        if not mots:
+            return []
+        with self._verrou_fichiers:
+            requete = self._requete_fichiers(len(mots))
+            for i, mot in enumerate(mots):
+                requete.bind_string(f"m{i}", mot)
+            requete.bind_int("limite", limite)
+            curseur = requete.execute(None)
+            fichiers = []
+            while curseur.next(None):
+                chemin = Gio.File.new_for_uri(curseur.get_string(0)[0]).get_path()
+                if not chemin:
+                    continue
+                if not os.path.lexists(chemin):
+                    continue  # supprimé depuis la dernière indexation
+                modif = curseur.get_datetime(2)
+                fichiers.append(Fichier(
+                    chemin=chemin, nom=curseur.get_string(1)[0] or os.path.basename(chemin),
+                    dossier=os.path.isdir(chemin), modifie=modif.to_unix() if modif else 0.0,
+                    type_mime=curseur.get_string(3)[0] or ""))
+                fichiers[-1].icone = self._icone_fichier(fichiers[-1])
+            curseur.close()
+        return fichiers
+
+    @staticmethod
+    def _icone_fichier(fichier: Fichier) -> str:
+        if fichier.dossier:
+            return "folder-symbolic"
+        type_ = fichier.type_mime or Gio.content_type_guess(fichier.nom, None)[0]
+        nom = Gio.content_type_get_generic_icon_name(type_) or "text-x-generic"
+        return f"{nom}-symbolic"
+
+    def afficher_dans_dossier(self, chemin: str) -> None:
+        uri = Gio.File.new_for_path(chemin).get_uri()
+        try:
+            self.bus_session.call_sync(
+                "org.freedesktop.FileManager1", "/org/freedesktop/FileManager1", "org.freedesktop.FileManager1",
+                "ShowItems", GLib.Variant("(ass)", ([uri], "")), None, Gio.DBusCallFlags.NONE, 5000, None)
+        except GLib.Error:
+            self.ouvrir(os.path.dirname(chemin))
+
     # --- Bascules ------------------------------------------------------------------
     def basculer_theme_sombre(self) -> bool:
         reglages = self._reglages("org.gnome.desktop.interface")
@@ -278,6 +358,14 @@ class PlateformeLinux(Plateforme):
         try:
             self._appel(self.bus_session, "org.gnome.Shell", "/app/declic/Shell", "app.declic.Shell",
                         "SaisirIdentifiant", GLib.Variant("(si)", (site, int(delai_s))))
+        except GLib.Error as exc:
+            raise NonPrisEnCharge("La barre Déclic (extension GNOME) n'est pas active : "
+                                  "reconnectez-vous pour la charger.") from exc
+
+    def valider_page(self, adresse, delai_s):
+        try:
+            self._appel(self.bus_session, "org.gnome.Shell", "/app/declic/Shell", "app.declic.Shell",
+                        "ValiderPage", GLib.Variant("(si)", (adresse, int(delai_s))))
         except GLib.Error as exc:
             raise NonPrisEnCharge("La barre Déclic (extension GNOME) n'est pas active : "
                                   "reconnectez-vous pour la charger.") from exc

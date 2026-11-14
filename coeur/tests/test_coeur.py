@@ -16,7 +16,7 @@ from declic import texte
 from declic.chemins import Chemins
 from declic.modules import calcul
 from declic.modules.snippets import remplir
-from declic.plateforme.base import Application, Plateforme
+from declic.plateforme.base import Application, Fichier, Plateforme
 from declic.registre import Registre
 from declic.serveur import creer_serveur
 
@@ -50,6 +50,20 @@ class FaussePlateforme(Plateforme):
     def basculer_theme_sombre(self):
         self.sombre = not self.sombre
         return self.sombre
+
+
+class PlateformeAvecFichiers(FaussePlateforme):
+    """Index de fichiers simulé : filtre comme LocalSearch (tous les mots dans le nom)."""
+
+    def __init__(self, fichiers):
+        super().__init__()
+        self.fichiers = fichiers
+
+    def chercher_fichiers(self, mots, limite=60):
+        return [f for f in self.fichiers if all(m in texte.normaliser(f.nom) for m in mots)][:limite]
+
+    def afficher_dans_dossier(self, chemin):
+        self.appels.append(("montrer", chemin))
 
 
 class PlateformeAvecCoffre(FaussePlateforme):
@@ -190,10 +204,83 @@ class TestRegistre(BaseRegistre):
         self.assertIn(("copier", "datation carbone 14"), self.plateforme.appels)
         self.assertTrue(self.plateforme.appels[-1][1].startswith("https://gemini.google.com/app?q="))
 
+    def test_ia_envoie_la_question(self):
+        class AvecEnvoi(FaussePlateforme):
+            def valider_page(self, adresse, delai_s):
+                self.appels.append(("valider", adresse))
+        self.registre.historique.fermer()
+        self.plateforme = AvecEnvoi()
+        self.registre = Registre(self.plateforme, self.chemins)
+        self.registre.executer("ia.claude", "bonjour")
+        self.assertEqual(self.plateforme.appels[-2:], [("ouvrir", "https://claude.ai/new?q=bonjour"),
+                                                       ("valider", "https://claude.ai/new?q=bonjour")])
+
     def test_ia_en_dernier_recours(self):
         commandes = [r.commande for r in self.registre.rechercher("a")]
         self.assertEqual(commandes[-4:], ["ia.gpt", "ia.claude", "ia.gemini", "liens.g"])
         self.assertLessEqual(len(commandes), 20)
+
+    def test_fichiers_par_nom(self):
+        racine = Path(self._dossier.name)
+        rapport = racine / "Rapport de fouille 2021.pdf"
+        rapport.write_text("x")
+        cache = racine / "node_modules" / "rapport fouille.js"
+        self.registre.historique.fermer()
+        self.plateforme = PlateformeAvecFichiers([
+            Fichier(str(rapport), rapport.name, modifie=1.0),
+            Fichier(str(cache), cache.name),
+            Fichier(str(racine / "Mémoire"), "Mémoire", dossier=True),
+        ])
+        self.registre = Registre(self.plateforme, self.chemins)
+        resultats = self.registre.rechercher("rapport fouille")
+        fichiers = [r for r in resultats if r.module == "fichiers"]
+        self.assertEqual([r.argument for r in fichiers], [str(rapport)])  # node_modules écarté
+        self.assertEqual(fichiers[0].section, "Fichiers")
+        # au-dessus des recherches web et IA
+        self.assertGreater(fichiers[0].score, 2.0)
+        # nom exact (sans l'extension) : le fichier passe en tête
+        exact = self.registre.rechercher("rapport de fouille 2021")[0]
+        self.assertEqual((exact.module, exact.section), ("fichiers", "Meilleur résultat"))
+        self.assertEqual(resultats[-1].commande, "liens.g")
+        self.assertEqual(self.registre.executer("fichiers.ouvrir", str(rapport)).statut, "ok")
+        self.assertEqual(self.plateforme.appels[-1], ("ouvrir", str(rapport)))
+        self.registre.executer("fichiers.montrer", str(rapport))
+        self.assertEqual(self.plateforme.appels[-1], ("montrer", str(rapport)))
+        self.assertEqual(self.registre.executer("fichiers.ouvrir", str(racine / "absent.pdf")).statut, "erreur")
+        # accents ignorés, dossier reconnu ; requête trop courte : rien
+        memoire = [r for r in self.registre.rechercher("memoire") if r.module == "fichiers"]
+        self.assertEqual(memoire[0].icone, "folder-symbolic")
+        self.assertFalse([r for r in self.registre.rechercher("me") if r.module == "fichiers"])
+
+    def test_hierarchie_applis_fichiers_fonctions(self):
+        racine = Path(self._dossier.name)
+        self.registre.historique.fermer()
+        self.plateforme = PlateformeAvecFichiers([
+            Fichier(str(racine / "fichiers-notes.txt"), "fichiers-notes.txt", modifie=1.0),
+            Fichier(str(racine / "basculer theme notes.txt"), "basculer theme notes.txt", modifie=1.0)])
+        self.registre = Registre(self.plateforme, self.chemins)
+        # applications avant fichiers
+        res = [r for r in self.registre.rechercher("fich") if r.score >= 2]
+        self.assertEqual([(r.module, r.section) for r in res[:2]], [("app", "Applications"), ("fichiers", "Fichiers")])
+        # fichiers avant fonctions, même quand la fonction correspond mieux
+        res = [r for r in self.registre.rechercher("basculer the") if r.score >= 2]
+        modules = [r.module for r in res]
+        self.assertEqual(modules[0], "fichiers")
+        self.assertIn("systeme.theme-sombre", [r.commande for r in res[1:]])
+        self.assertEqual(res[-1].section, "Fonctionnalités")
+
+    def test_presque_identique_passe_en_tete(self):
+        # une fonction dont le nom est tapé (presque) exactement passe devant les applications
+        res = self.registre.rechercher("basculer le theme sombe")  # faute de frappe
+        self.assertEqual(res[0].commande, "systeme.theme-sombre")
+        self.assertEqual(res[0].section, "Meilleur résultat")
+        self.assertEqual(self.registre.rechercher("zotro")[0].commande, "app.org.zotero.Zotero.desktop")
+        self.assertTrue(texte.presque_identique("wifi", ["Wi-Fi"]))
+        self.assertFalse(texte.presque_identique("fire", ["Firefox"]))
+        self.assertFalse(texte.presque_identique("lol", ["lot"]))  # trop court pour tolérer une faute
+
+    def test_pas_de_fichiers_sans_index(self):
+        self.assertFalse([r for r in self.registre.rechercher("rapport") if r.module == "fichiers"])
 
     def _favori(self, commande, argument=None, titre="X"):
         return self.registre.executer("favoris.basculer", json.dumps(

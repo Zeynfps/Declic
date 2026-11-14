@@ -66,6 +66,7 @@ class Resultat:
     module: str = field(default="")
     section: str = ""  # en-tête sous lequel la barre range la ligne (« Favoris »…) ; vide = choix de la barre
     favori: bool = False
+    presque: bool = False  # le texte tapé est (presque) exactement son nom : passe en tête (registre)
 
     def en_dict(self) -> dict:
         return {

@@ -6,9 +6,9 @@ snippets, actions système, son et musique, scripts, identifiants (trousseau du 
 déclenchées par le PC (heure, Wi-Fi, verrouillage, alimentation, ouverture de session).
 
 ## 0.2 : prévu
+- **Recherche de fichiers** par nom avec l'index de GNOME (LocalSearch) : fait.
 - **Historique du presse-papiers** : chercher dans ce qu'on a copié et le recoller, sans garder les mots de passe.
 - **Fenêtres** : passer d'une fenêtre à l'autre, fermer une application.
-- **Recherche de fichiers** avec l'index de GNOME (LocalSearch).
 - Actions « activer » et « désactiver » (Wi-Fi, Ne pas déranger…) en plus des bascules, pour les automatisations.
 - Raccourci clavier ou alias pour n'importe quelle commande.
 - Conversion de devises, sélecteur d'émojis, variables `{presse-papiers}` et `{curseur}` dans les snippets.
