@@ -60,7 +60,7 @@ MODELE = """# Automatisations de Déclic : « quand » quelque chose arrive, « 
 #
 # Actions : les commandes de la barre (liste complète : python3 -m declic commandes), par exemple
 #   "son.volume-25", "systeme.ne-pas-deranger", "app.org.zotero.Zotero.desktop",
-#   "liens.ouvrir:https://ent.uca.fr", "liens.persee:céramique sigillée"
+#   "liens.ouvrir:https://ent.univ.fr", "liens.persee:céramique sigillée"
 # et deux actions propres aux règles : "attendre:5" (secondes) et "notifier:Votre message".
 #
 # Déclencheurs :
@@ -89,7 +89,7 @@ MODELE = """# Automatisations de Déclic : « quand » quelque chose arrive, « 
 # nom = "Arrivée à la fac"
 # quand = { evenement = "wifi.connecte", valeur = "eduroam" }
 # si = { jours = ["lun", "mar", "mer", "jeu", "ven"] }
-# alors = ["son.volume-0", "liens.ouvrir:https://ent.uca.fr"]
+# alors = ["son.volume-0", "liens.ouvrir:https://ent.univ.fr"]
 """
 
 
