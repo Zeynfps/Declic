@@ -1,0 +1,15 @@
+[Unit]
+Description=Déclic : service de la barre de commande
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+Environment=PYTHONPATH=@COEUR@
+WorkingDirectory=@COEUR@
+ExecStart=/usr/bin/python3 -m declic serveur
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=graphical-session.target

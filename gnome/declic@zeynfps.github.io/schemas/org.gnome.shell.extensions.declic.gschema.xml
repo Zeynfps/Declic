@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.declic" path="/org/gnome/shell/extensions/declic/">
+    <key name="ouvrir-barre" type="as">
+      <default><![CDATA[['<Super>r']]]></default>
+      <summary>Raccourci pour ouvrir la barre</summary>
+    </key>
+    <key name="chemin-coeur" type="s">
+      <default>''</default>
+      <summary>Dossier du cœur Python de Déclic (contenant le paquet « declic »)</summary>
+      <description>Utilisé pour démarrer le service s'il ne répond pas. Vide : le service doit être lancé autrement (service systemd).</description>
+    </key>
+    <key name="nombre-resultats" type="i">
+      <default>8</default>
+      <summary>Nombre de résultats affichés</summary>
+    </key>
+    <key name="flou-actif" type="b">
+      <default>true</default>
+      <summary>Flouter l'écran derrière la barre</summary>
+    </key>
+    <key name="flou-rayon" type="i">
+      <range min="0" max="100"/>
+      <default>30</default>
+      <summary>Intensité du flou (rayon en pixels)</summary>
+    </key>
+    <key name="flou-assombrissement" type="i">
+      <range min="0" max="80"/>
+      <default>15</default>
+      <summary>Assombrissement de l'arrière-plan (en %)</summary>
+    </key>
+    <key name="opacite-barre" type="i">
+      <range min="40" max="100"/>
+      <default>88</default>
+      <summary>Opacité du fond de la barre (en %)</summary>
+      <description>En dessous de 100 %, l'arrière-plan (flouté ou non) transparaît dans la barre.</description>
+    </key>
+  </schema>
+</schemalist>

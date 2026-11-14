@@ -1,0 +1,362 @@
+/* Déclic : fenêtre fixe ~750 × 475, avec un pied d'actions. */
+
+.declic-fond {
+  background-color: transparent;
+}
+
+.declic-barre {
+  width: 750px;
+  border-radius: 14px;
+  background-color: rgba(28, 28, 31, 0.97);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
+  color: #ececec;
+}
+
+/* --- En-tête --- */
+.declic-saisie {
+  spacing: 8px;
+  padding: 10px 16px;
+  height: 36px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.declic-entree {
+  font-size: 14pt;
+  padding: 4px 2px;
+  border: none;
+  background-color: transparent;
+  box-shadow: none;
+  color: #ffffff;
+  caret-color: #ffffff;
+  selected-color: #ffffff;
+  selection-background-color: rgba(255, 99, 99, 0.45);
+}
+
+.declic-entree StLabel.hint-text {
+  color: rgba(255, 255, 255, 0.38);
+}
+
+.declic-retour {
+  padding: 5px;
+  border-radius: 7px;
+  background-color: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.declic-retour:hover {
+  background-color: rgba(255, 255, 255, 0.16);
+}
+
+.declic-puce {
+  padding: 3px 10px;
+  border-radius: 7px;
+  background-color: rgba(255, 255, 255, 0.10);
+  color: #ffffff;
+  font-weight: bold;
+}
+
+/* --- Corps --- */
+.declic-corps {
+  height: 360px;
+}
+
+.declic-defilement {
+  padding: 6px 8px;
+}
+
+.declic-liste {
+  spacing: 1px;
+}
+
+.declic-section {
+  font-size: 8.5pt;
+  font-weight: bold;
+  color: rgba(255, 255, 255, 0.45);
+  padding: 8px 8px 4px 8px;
+}
+
+.declic-effacer {
+  font-size: 8.5pt;
+  color: rgba(255, 255, 255, 0.45);
+  padding: 2px 8px;
+  margin: 4px 4px 0 0;
+  border-radius: 6px;
+}
+
+.declic-effacer:hover {
+  color: rgba(255, 255, 255, 0.85);
+  background-color: rgba(255, 255, 255, 0.10);
+}
+
+.declic-ligne {
+  border-radius: 8px;
+  padding: 0;
+  color: #ececec;
+}
+
+.declic-ligne:selected {
+  background-color: rgba(255, 255, 255, 0.10);
+}
+
+.declic-ligne-boite {
+  spacing: 10px;
+  padding: 7px 8px;
+}
+
+.declic-titre {
+  font-size: 10.5pt;
+  color: #ffffff;
+}
+
+.declic-sous-titre {
+  font-size: 10pt;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.declic-accessoire {
+  spacing: 6px;
+}
+
+.declic-type {
+  font-size: 9.5pt;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.declic-alerte {
+  font-size: 9.5pt;
+  color: #ffb454;
+}
+
+.declic-touche {
+  font-size: 8.5pt;
+  min-width: 12px;
+  padding: 1px 5px;
+  border-radius: 5px;
+  background-color: rgba(255, 255, 255, 0.10);
+  color: rgba(255, 255, 255, 0.75);
+  text-align: center;
+}
+
+/* Carte de la calculatrice */
+.declic-ligne-calcul {
+  margin-bottom: 4px;
+}
+
+.declic-calcul {
+  spacing: 6px;
+  padding: 14px 8px;
+  height: 84px;
+}
+
+.declic-calcul-moitie {
+  spacing: 6px;
+}
+
+.declic-calcul-valeur {
+  font-size: 18pt;
+  font-weight: bold;
+  color: #ffffff;
+}
+
+.declic-calcul-legende {
+  font-size: 8.5pt;
+  padding: 1px 8px;
+  border-radius: 5px;
+  background-color: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.declic-calcul-fleche {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+/* Vue texte (sortie d'un script…) */
+.declic-texte {
+  padding: 6px 10px;
+  font-family: monospace;
+  font-size: 9.5pt;
+  color: #e6e6e6;
+}
+
+/* Aucun résultat */
+.declic-vide {
+  spacing: 10px;
+}
+
+.declic-vide-icone {
+  color: rgba(255, 255, 255, 0.25);
+}
+
+.declic-vide-texte {
+  font-size: 10pt;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+/* --- Réglages --- */
+.declic-reglage {
+  spacing: 12px;
+  padding: 9px 10px;
+  min-height: 26px;
+}
+
+.declic-reglage-valeur {
+  font-size: 9.5pt;
+  width: 52px;
+  text-align: right;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+
+.declic-reglage-aide {
+  font-size: 9pt;
+  color: rgba(255, 255, 255, 0.40);
+  padding: 10px 10px 0 10px;
+}
+
+/* --- Pied --- */
+.declic-pied {
+  spacing: 8px;
+  padding: 6px 10px 6px 14px;
+  height: 28px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  background-color: rgba(255, 255, 255, 0.025);
+  border-radius: 0 0 14px 14px;
+}
+
+.declic-pied-icone {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.declic-pied-texte {
+  font-size: 9.5pt;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.declic-pied-texte.erreur {
+  color: #ff6b6b;
+}
+
+.declic-pied-texte.alerte {
+  color: #ffb454;
+}
+
+.declic-pied-bouton {
+  border-radius: 6px;
+  padding: 3px 6px;
+  font-size: 9.5pt;
+  color: #ffffff;
+}
+
+.declic-pied-bouton:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.declic-pied-action {
+  spacing: 5px;
+}
+
+.declic-pied-separateur {
+  width: 1px;
+  height: 14px;
+  background-color: rgba(255, 255, 255, 0.15);
+}
+
+/* --- Panneau d'actions (Ctrl+K) --- */
+.declic-actions {
+  min-width: 300px;
+  padding: 6px;
+  spacing: 1px;
+  border-radius: 12px;
+  background-color: rgba(40, 40, 44, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  color: #ececec;
+}
+
+.declic-actions .declic-ligne-boite {
+  spacing: 10px;
+  padding: 6px 8px;
+}
+
+/* Logo du pied : ouvre les réglages */
+.declic-pied-logo {
+  padding: 3px;
+  border-radius: 6px;
+}
+
+.declic-pied-logo:hover {
+  background-color: rgba(255, 255, 255, 0.10);
+}
+
+/* --- Formulaire d'ajout (liens, snippets…) --- */
+.declic-form-intro {
+  padding: 4px 10px 6px 10px;
+}
+
+.declic-champ-boite {
+  spacing: 5px;
+  padding: 7px 10px;
+}
+
+.declic-champ-titre {
+  font-size: 9.5pt;
+  font-weight: bold;
+  color: rgba(255, 255, 255, 0.70);
+}
+
+.declic-champ {
+  font-size: 10.5pt;
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  background-color: rgba(255, 255, 255, 0.06);
+  box-shadow: none;
+  color: #ffffff;
+  caret-color: #ffffff;
+  selected-color: #ffffff;
+  selection-background-color: rgba(255, 99, 99, 0.45);
+}
+
+.declic-champ:focus {
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background-color: rgba(255, 255, 255, 0.09);
+}
+
+.declic-champ.erreur {
+  border: 1px solid #ff6b6b;
+}
+
+.declic-champ.multiligne {
+  min-height: 60px;
+}
+
+.declic-champ StLabel.hint-text {
+  color: rgba(255, 255, 255, 0.30);
+}
+
+.declic-champ-aide {
+  font-size: 8.5pt;
+  color: rgba(255, 255, 255, 0.42);
+}
+
+/* Champ à choix (← →) */
+.declic-choix {
+  text-align: left;
+}
+
+.declic-choix-boite {
+  spacing: 8px;
+}
+
+.declic-choix-fleche,
+.declic-choix-position {
+  color: rgba(255, 255, 255, 0.40);
+  font-size: 9pt;
+}
+
+/* Étoile des favoris, à gauche du type de la ligne */
+.declic-etoile {
+  color: rgba(255, 255, 255, 0.6);
+  margin-right: 6px;
+}
