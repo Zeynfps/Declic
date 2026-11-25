@@ -11,6 +11,7 @@ const appeler = async (canal, ...args) => {
 contextBridge.exposeInMainWorld('declic', {
   api: {
     rechercher: (requete, limite, page) => appeler('api:rechercher', requete, limite, page),
+    rechercherSelection: (requete, selection, limite) => appeler('api:rechercher-selection', requete, selection, limite),
     executer: (commande, argument) => appeler('api:executer', commande, argument),
     creations: () => appeler('api:creations'),
     creer: (type, valeurs) => appeler('api:creer', type, valeurs),
@@ -22,6 +23,8 @@ contextBridge.exposeInMainWorld('declic', {
   reinitialiser: () => appeler('barre:reinitialiser'),
   demarrageWindows: (actif) => appeler('barre:demarrage-windows', actif),
   raccourci: () => appeler('barre:raccourci'),
+  changerRaccourci: (type, raccourci) => appeler('barre:changer-raccourci', type, raccourci),
+  suspendreRaccourcis: (suspendre) => appeler('barre:suspendre-raccourcis', suspendre),
   fermer: (garder) => appeler('barre:fermer', garder),
   osd: (message) => appeler('barre:osd', message),
   copier: (texte) => appeler('barre:copier', texte),
@@ -32,4 +35,6 @@ contextBridge.exposeInMainWorld('declic', {
   surApparence: (fn) => ipcRenderer.on('barre:apparence', (_e, a) => fn(a)),
   surEcran: (fn) => ipcRenderer.on('barre:ecran', (_e, ecran) => fn(ecran)),
   surPage: (fn) => ipcRenderer.on('barre:page', (_e, url) => fn(url)),
+  surSelection: (fn) => ipcRenderer.on('barre:selection', (_e, texte, refus) => fn(texte, refus)),
+  surRaccourciCapte: (fn) => ipcRenderer.on('barre:raccourci-capte', (_e, raccourci) => fn(raccourci)),
 });

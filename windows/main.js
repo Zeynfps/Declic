@@ -15,6 +15,7 @@ const fenetres = require('./fenetres');
 const { capturer } = require('./capture');
 const { iconeFichier } = require('./logos');
 const { processusAuPremierPlan } = require('./premier-plan');
+const { lireSelection } = require('./selection');
 
 const RACCOURCI_PAR_DEFAUT = 'Alt+Space';
 const DELAI_DEMARRAGE_MS = 8000;
@@ -34,6 +35,7 @@ const PYTHON_LIVRE = app.isPackaged ? path.join(process.resourcesPath, 'python',
 const APPARENCE_PAR_DEFAUT = fenetres.APPARENCE_PAR_DEFAUT;
 const REGLAGES_PAR_DEFAUT = {
   raccourci: RACCOURCI_PAR_DEFAUT,
+  raccourciSelection: 'Alt+Shift+Space', // copie le texte sélectionné et ouvre Déclic avec les actions (IA…)
   nombreResultats: 8,
   ...APPARENCE_PAR_DEFAUT,
   python: '',
@@ -45,7 +47,8 @@ let zoneNotif = null;
 let service = null;
 let demarrage = null;
 let ouverte = false;
-let raccourciActif = null;
+// Raccourcis enregistrés auprès de Windows : ouvrir Déclic, et ouvrir avec le texte sélectionné
+const raccourcisActifs = { raccourci: null, raccourciSelection: null };
 
 // ---------- Réglages ----------
 
@@ -310,14 +313,76 @@ function demarrerAvecWindows(actif) {
 
 // ---------- Raccourci global ----------
 
-function enregistrerRaccourci(raccourci) {
-  if (raccourciActif) globalShortcut.unregister(raccourciActif);
-  raccourciActif = null;
-  if (globalShortcut.register(raccourci, basculer)) {
-    raccourciActif = raccourci;
-    return true;
+const CAPTEES = ['Alt+Space', 'Alt+Shift+Space', 'Control+Space', 'Control+Shift+Space', 'Alt+Control+Space'];
+let captees = [];
+const ACTIONS_RACCOURCIS = { raccourci: () => basculer(), raccourciSelection: () => ouvrirAvecSelection() };
+
+function enregistrerRaccourci(raccourci, type = 'raccourci') {
+  if (raccourcisActifs[type]) globalShortcut.unregister(raccourcisActifs[type]);
+  raccourcisActifs[type] = null;
+  if (!raccourci) return true; // raccourci désactivé
+  try {
+    if (globalShortcut.register(raccourci, ACTIONS_RACCOURCIS[type])) {
+      raccourcisActifs[type] = raccourci;
+      return true;
+    }
+  } catch {
+    // combinaison refusée par Electron
   }
   return false;
+}
+
+// Pendant que l'on tape un nouveau raccourci dans les réglages, les anciens ne doivent pas se déclencher.
+// Windows réserve Alt+Espace (menu de la fenêtre) : ces combinaisons-là sont captées ici et transmises à la page.
+
+function suspendreRaccourcis(suspendre) {
+  const reglages = lireReglages();
+  for (const raccourci of captees) globalShortcut.unregister(raccourci);
+  captees = [];
+  for (const type of Object.keys(raccourcisActifs)) {
+    if (suspendre) enregistrerRaccourci(null, type);
+    else enregistrerRaccourci(reglages[type], type);
+  }
+  if (!suspendre) return;
+  for (const raccourci of CAPTEES) {
+    try {
+      if (globalShortcut.register(raccourci, () => fenetre?.webContents.send('barre:raccourci-capte', raccourci))) captees.push(raccourci);
+    } catch {
+      // déjà pris par une autre application : la page le reçoit normalement, ou pas du tout
+    }
+  }
+}
+
+// Nouveau raccourci choisi dans les réglages : essayé d'abord, gardé seulement s'il marche
+function changerRaccourci(type, raccourci) {
+  if (!(type in raccourcisActifs)) throw new Error('raccourci inconnu');
+  for (const capte of captees) globalShortcut.unregister(capte); // la capture est finie
+  captees = [];
+  const reglages = lireReglages();
+  const autre = type === 'raccourci' ? 'raccourciSelection' : 'raccourci';
+  if (raccourci && raccourci === reglages[autre]) throw new Error("c'est déjà l'autre raccourci de Déclic");
+  if (!enregistrerRaccourci(raccourci, type)) {
+    enregistrerRaccourci(reglages[type], type);
+    throw new Error(`${libelleRaccourci(raccourci)} est déjà pris par Windows ou une autre application`);
+  }
+  ecrireReglages({ [type]: raccourci });
+  majMenu();
+  return libelleRaccourci(raccourci);
+}
+
+// Raccourci « texte sélectionné » : copie la sélection de l'application au premier plan, puis ouvre la barre
+async function ouvrirAvecSelection() {
+  if (ouverte) { fermer(true); return; }
+  let resultat = { texte: '' };
+  try {
+    resultat = await lireSelection();
+  } catch (e) {
+    resultat = { texte: '', refus: 'erreur interne', erreur: String(e?.stack || e) }; // on ouvre quand même
+  }
+  if (process.env.DECLIC_DEBUG) fs.appendFileSync(path.join(DOSSIER_DONNEES, 'debug.log'), `${new Date().toISOString()} selection ${JSON.stringify(resultat)}
+`);
+  ouvrir();
+  fenetre?.webContents.send('barre:selection', resultat.texte || '', resultat.refus || '');
 }
 
 // ---------- Zone de notification ----------
@@ -328,9 +393,9 @@ function libelleRaccourci(r) {
 
 function majMenu() {
   if (!zoneNotif) return;
-  zoneNotif.setToolTip(`Déclic — ${libelleRaccourci(raccourciActif ?? lireReglages().raccourci)}`);
+  zoneNotif.setToolTip(`Déclic — ${libelleRaccourci(raccourcisActifs.raccourci ?? lireReglages().raccourci)}`);
   zoneNotif.setContextMenu(Menu.buildFromTemplate([
-    { label: `Ouvrir Déclic (${libelleRaccourci(raccourciActif ?? lireReglages().raccourci)})`, click: ouvrir },
+    { label: `Ouvrir Déclic (${libelleRaccourci(raccourcisActifs.raccourci ?? lireReglages().raccourci)})`, click: ouvrir },
     { label: 'Réglages', click: () => { ouvrir(); fenetre.webContents.send('barre:reglages'); } },
     { type: 'separator' },
     {
@@ -367,6 +432,9 @@ gerer('api:rechercher', (requeteTexte, limite, page) => {
   const p = page ? `&page=${encodeURIComponent(page)}` : '';
   return requete('GET', `/v1/recherche?q=${q}&limite=${Number(limite) || 8}${p}`).then((r) => r.resultats);
 });
+gerer('api:rechercher-selection', (requeteTexte, selection, limite) => requete('POST', '/v1/recherche-selection', {
+  requete: String(requeteTexte ?? ''), selection: String(selection ?? ''), limite: Number(limite) || 8,
+}).then((r) => r.resultats));
 gerer('api:executer', (commande, argument) => requete('POST', '/v1/executer', { commande: String(commande), argument: argument ?? null }));
 gerer('api:creations', () => requete('GET', '/v1/creations').then((r) => r.creations));
 gerer('api:creer', (type, valeurs) => requete('POST', '/v1/creer', { type: String(type), valeurs }));
@@ -389,7 +457,16 @@ gerer('barre:demarrage-windows', (actif) => {
   if (typeof actif === 'boolean') { demarrerAvecWindows(actif); majMenu(); }
   return demarreAvecWindows();
 });
-gerer('barre:raccourci', () => ({ raccourci: libelleRaccourci(raccourciActif ?? lireReglages().raccourci), actif: Boolean(raccourciActif) }));
+gerer('barre:raccourci', () => {
+  const reglages = lireReglages();
+  return {
+    raccourci: libelleRaccourci(reglages.raccourci), actif: Boolean(raccourcisActifs.raccourci),
+    raccourciSelection: reglages.raccourciSelection ? libelleRaccourci(reglages.raccourciSelection) : '',
+    actifSelection: Boolean(raccourcisActifs.raccourciSelection),
+  };
+});
+gerer('barre:changer-raccourci', (type, raccourci) => changerRaccourci(String(type), raccourci ? String(raccourci) : ''));
+gerer('barre:suspendre-raccourcis', (suspendre) => suspendreRaccourcis(Boolean(suspendre)));
 gerer('barre:fermer', (garder) => fermer(Boolean(garder)));
 // Un clic sur l'arrière-plan (ou à côté de la barre) la ferme, en gardant la vue
 ipcMain.on('fond:clic', () => { if (ouverte) fermer(true); });
@@ -409,6 +486,7 @@ if (!app.requestSingleInstanceLock()) {
     creerFenetre();
     creerFond();
     creerZoneNotif();
+    enregistrerRaccourci(lireReglages().raccourciSelection, 'raccourciSelection');
     if (!enregistrerRaccourci(lireReglages().raccourci)) {
       zoneNotif.displayBalloon({
         title: 'Déclic',

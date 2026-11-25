@@ -77,6 +77,18 @@ class Barre {
     window.declic.surApparence((a) => appliquerVerre(a));
     window.declic.surEcran((ecran) => placerEcran(ecran));
     // La page du navigateur qui avait la main, pour proposer « Remplir ici » (comme sous GNOME)
+    // Raccourci « texte sélectionné » : la barre propose les actions sur ce texte (IA…)
+    // Combinaison avec Alt+Espace tapée pendant le choix d'un raccourci (Windows la garde pour lui sinon)
+    window.declic.surRaccourciCapte((raccourci) => { if (this.captureRaccourci) this.finirCapture(raccourci); });
+    window.declic.surSelection((texte, refus) => {
+      this.selection = texte || null;
+      this.pile = [{ type: 'recherche' }];
+      this.afficherVue();
+      this.entree.value = '';
+      this.majSaisieSelection();
+      if (!texte) this.toast(refus ? `Copie impossible ici : ${refus}` : 'Aucun texte sélectionné', 'alerte');
+      this.rechercher();
+    });
     window.declic.surPage((url) => {
       this.page = url;
       if (this.ouverte && this.vue?.type === 'recherche') this.rechercher(this.index);
@@ -91,6 +103,8 @@ class Barre {
   ouvrir(reglages) {
     this.reglages = { ...this.reglages, ...reglages };
     this.page = null; // arrive juste après, si un navigateur avait la main
+    this.selection = null; // idem avec le raccourci « texte sélectionné »
+    this.majSaisieSelection();
     this.ouverte = true;
     this.appliquerApparence();
     const garde = this.etatGarde;
@@ -244,7 +258,9 @@ class Barre {
     const numero = ++this.sequence;
     const requete = this.entree.value;
     try {
-      const resultats = await api.rechercher(requete, this.reglages.nombreResultats, this.page);
+      const resultats = this.selection
+        ? await api.rechercherSelection(requete, this.selection, this.reglages.nombreResultats)
+        : await api.rechercher(requete, this.reglages.nombreResultats, this.page);
       if (numero !== this.sequence || !this.ouverte || this.vue.type !== 'recherche') return;
       this.resultats = resultats;
       this.index = Math.min(index, Math.max(0, resultats.length - 1));
@@ -478,7 +494,12 @@ class Barre {
     if (!vue) return [];
     const revenir = { titre: 'Revenir', icone: 'go-previous-symbolic', faire: () => this.revenir() };
     if (vue.type === 'texte') {
-      return [{ titre: 'Copier le texte', icone: 'edit-copy-symbolic', faire: () => this.copier(vue.texte) }, revenir];
+      const liste = [{ titre: 'Copier le texte', icone: 'edit-copy-symbolic', faire: () => this.copier(vue.texte) }];
+      if (vue.remplacable) {
+        liste.push({ titre: 'Remplacer la sélection', icone: 'edit-paste-symbolic',
+          faire: () => this.executer({ commande: 'pp.coller', titre: 'Remplacer' }, vue.texte) });
+      }
+      return [...liste, revenir];
     }
     if (vue.type === 'elements') {
       const element = vue.visibles?.[this.index];
@@ -630,6 +651,7 @@ class Barre {
   // --- Clavier ----------------------------------------------------------------------
   toucheClavier(e) {
     if (!this.ouverte) return;
+    if (this.captureRaccourci) { this.capturerRaccourci(e); return; }
     const ctrl = e.ctrlKey;
     const cle = e.key;
     const stop = () => { e.preventDefault(); e.stopPropagation(); };
@@ -741,11 +763,9 @@ class Barre {
     this.ajouterCurseur('display-brightness-symbolic', 'Assombrir la barre', 'assombrirBarre', 0, 100, 5);
 
     this.liste.append(this.section('Windows'));
-    const { raccourci, actif } = await window.declic.raccourci().catch(() => ({ raccourci: 'Alt+Espace', actif: false }));
-    this.ajouterReglage('preferences-system-symbolic', 'Raccourci pour ouvrir Déclic', [el('span', actif ? 'type' : 'alerte', actif ? raccourci : `${raccourci} (déjà pris)`)], true, {
-      activer: () => this.toast('Modifiable dans %APPDATA%\\Declic\\barre.json (« raccourci »)'),
-      ajuster: () => {}, maj: () => {}, titreAction: () => 'Voir',
-    });
+    const infos = await window.declic.raccourci().catch(() => ({ raccourci: 'Alt+Espace', actif: false }));
+    this.ajouterRaccourci('Raccourci pour ouvrir Déclic', 'raccourci', infos.raccourci, infos.actif);
+    this.ajouterRaccourci('Raccourci « texte sélectionné »', 'raccourciSelection', infos.raccourciSelection, infos.actifSelection);
     const demarrage = el('span', 'interrupteur');
     let demarre = await window.declic.demarrageWindows().catch(() => false);
     this.ajouterReglage('system-run-symbolic', 'Démarrer avec Windows', [demarrage], true, {
@@ -806,6 +826,71 @@ class Barre {
       },
       titreAction: () => 'Ajuster avec ← →',
     });
+  }
+
+  // Ligne de réglage d'un raccourci : Entrée ou clic, puis la nouvelle combinaison au clavier
+  ajouterRaccourci(titre, type, valeur, actif) {
+    const etiquette = el('span', 'type', '');
+    const afficher = (texte, enregistre) => {
+      etiquette.textContent = !texte ? 'Aucun' : enregistre ? texte : `${texte} (déjà pris)`;
+      etiquette.className = texte && !enregistre ? 'alerte' : 'type';
+    };
+    afficher(valeur, actif);
+    this.ajouterReglage('preferences-system-symbolic', titre, [etiquette], true, {
+      activer: () => {
+        this.captureRaccourci = { type, afficher };
+        etiquette.textContent = 'Appuyez sur la combinaison…';
+        etiquette.className = 'alerte';
+        window.declic.suspendreRaccourcis(true).catch(() => {});
+        this.toast(type === 'raccourciSelection' ? 'Nouvelle combinaison ; Retour arrière pour le désactiver, Échap pour annuler'
+          : 'Nouvelle combinaison ; Échap pour annuler', 'alerte');
+      },
+      ajuster: () => {}, maj: () => {}, titreAction: () => 'Changer',
+    });
+  }
+
+  async capturerRaccourci(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (['Control', 'Alt', 'Shift', 'Meta'].includes(e.key)) return; // on attend la touche principale
+    const finir = (raccourci) => this.finirCapture(raccourci);
+    if (e.key === 'Escape') { await finir(null); return; }
+    if (e.key === 'Backspace' && capture.type === 'raccourciSelection' && !e.ctrlKey && !e.altKey) { await finir(''); return; }
+    // code physique de la touche ; à défaut (clavier virtuel…), la touche elle-même si c'est une lettre ou un chiffre
+    const touche = toucheElectron(e.code) ?? (/^[a-z0-9]$/i.test(e.key) ? e.key.toUpperCase() : null);
+    const modificateurs = [e.ctrlKey && 'Control', e.altKey && 'Alt', e.shiftKey && 'Shift', e.metaKey && 'Super'].filter(Boolean);
+    if (!touche || (!modificateurs.length && !/^F\d+$/.test(touche))) {
+      this.toast('Il faut au moins Ctrl, Alt, Maj ou Win avec une touche', 'alerte');
+      return;
+    }
+    await finir([...modificateurs, touche].join('+'));
+  }
+
+  async finirCapture(raccourci) {
+    const capture = this.captureRaccourci;
+    if (!capture) return;
+    this.captureRaccourci = null;
+    try {
+      if (raccourci !== null) {
+        const libelle = await window.declic.changerRaccourci(capture.type, raccourci);
+        this.toast(raccourci ? `Nouveau raccourci : ${libelle}` : 'Raccourci désactivé');
+      }
+    } catch (err) {
+      this.toast(err.message, 'erreur');
+    }
+    await window.declic.suspendreRaccourcis(false).catch(() => {});
+    const infos = await window.declic.raccourci().catch(() => null);
+    if (infos) {
+      const selection = capture.type === 'raccourciSelection';
+      capture.afficher(selection ? infos.raccourciSelection : infos.raccourci, selection ? infos.actifSelection : infos.actif);
+    }
+  }
+
+  majSaisieSelection() {
+    if (this.placeholderNormal === undefined) this.placeholderNormal = this.entree.placeholder;
+    this.entree.placeholder = this.selection
+      ? `Texte sélectionné (${this.selection.length} caractères) : que faire ? ou posez une question`
+      : this.placeholderNormal;
   }
 
   ajouterReglage(nomIcone, titre, controles, cliquable, reglage) {
@@ -1159,6 +1244,7 @@ class Barre {
 
   async executer(resultat, argument) {
     this.aConfirmer = null;
+    if (resultat.commande.startsWith('assistant.')) this.toast("L'IA réfléchit…", 'alerte');
     try {
       const reponse = await api.executer(resultat.commande, argument);
       if (!this.ouverte) return;
@@ -1168,7 +1254,8 @@ class Barre {
         this.fermer();
         if (reponse.message) window.declic.osd(reponse.message);
       } else if (reponse.texte) {
-        this.empiler({ type: 'texte', titre: resultat.titre, message: reponse.message, texte: reponse.texte });
+        this.empiler({ type: 'texte', titre: resultat.titre, message: reponse.message, texte: reponse.texte,
+          remplacable: Boolean(this.selection) && resultat.commande.startsWith('assistant.') });
       } else {
         this.toast(reponse.message || (reponse.statut === 'ok' ? 'Fait' : 'Échec'), reponse.statut === 'ok' ? 'info' : 'erreur');
         if (this.vue.type === 'recherche') this.majSelection();
@@ -1177,6 +1264,20 @@ class Barre {
       this.toast(`Échec : ${e.message}`, 'erreur');
     }
   }
+}
+
+// Code de touche du navigateur (KeyboardEvent.code) → nom de touche d'Electron (« accelerator »)
+function toucheElectron(code) {
+  if (/^Key[A-Z]$/.test(code)) return code.slice(3);
+  if (/^Digit\d$/.test(code)) return code.slice(5);
+  if (/^F\d{1,2}$/.test(code)) return code;
+  if (/^Numpad\d$/.test(code)) return `num${code.slice(6)}`;
+  return {
+    Space: 'Space', Enter: 'Enter', Tab: 'Tab', Backquote: '`', Minus: '-', Equal: '=', BracketLeft: '[',
+    BracketRight: ']', Backslash: '\\', Semicolon: ';', Quote: "'", Comma: ',', Period: '.', Slash: '/',
+    ArrowUp: 'Up', ArrowDown: 'Down', ArrowLeft: 'Left', ArrowRight: 'Right', Home: 'Home', End: 'End',
+    PageUp: 'PageUp', PageDown: 'PageDown', Insert: 'Insert', Delete: 'Delete', Backspace: 'Backspace',
+  }[code] ?? null;
 }
 
 window.barre = new Barre();
