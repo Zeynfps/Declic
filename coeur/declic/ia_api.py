@@ -10,12 +10,13 @@ vieilliraient, sauf un choix par défaut pour Claude.
 from __future__ import annotations
 
 import json
+import re
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
 
 VERSION_ANTHROPIC = "2026-10-21"
-DELAI_S = 120
+DELAI_S = 60
 
 
 @dataclass(frozen=True)
@@ -27,6 +28,8 @@ class Fournisseur:
     avec_cle: bool = True
     prefere: tuple[str, ...] = ()  # mots cherchés dans les noms de modèles pour choisir le modèle par défaut
     modele_defaut: str = ""
+    # Modèle par défaut : le plus récent dont le nom suit ce motif (le numéro de version est le 1er groupe)
+    motif: str = ""
 
 
 FOURNISSEURS = {f.cle: f for f in (
@@ -34,8 +37,10 @@ FOURNISSEURS = {f.cle: f for f in (
     Fournisseur("claude", "Claude (Anthropic)", "anthropic", "https://api.anthropic.com/v1",
                 modele_defaut="claude-opus-5-5"),
     Fournisseur("openai", "ChatGPT (OpenAI)", "openai", "https://api.openai.com/v1", prefere=("gpt-5", "gpt-4.1", "gpt-4o")),
+    # Gemini : la version « flash-lite » la plus récente (moins d'une seconde ; « flash » prend 20 à 60 s) ;
+    # Google retire vite les anciens modèles aux nouveaux comptes, d'où le choix par numéro de version
     Fournisseur("gemini", "Gemini (Google)", "openai", "https://generativelanguage.googleapis.com/v1beta/openai",
-                prefere=("gemini-2.5-flash", "gemini-flash", "gemini")),
+                motif=r"gemini-(\d+(?:\.\d+)?)-flash-lite", prefere=("flash-lite", "flash")),
     Fournisseur("deepseek", "DeepSeek", "openai", "https://api.deepseek.com", prefere=("deepseek-chat",)),
     Fournisseur("mistral", "Mistral", "openai", "https://api.mistral.ai/v1", prefere=("mistral-large", "mistral-medium")),
     Fournisseur("openrouter", "OpenRouter (tous les modèles)", "openai", "https://openrouter.ai/api/v1",
@@ -47,7 +52,9 @@ FOURNISSEURS = {f.cle: f for f in (
 
 
 class ErreurIA(Exception):
-    pass
+    def __init__(self, message: str, modele_conseille: str = ""):
+        super().__init__(message)
+        self.modele_conseille = modele_conseille  # quand le fournisseur dit d'utiliser un autre modèle
 
 
 def _requete(methode: str, adresse: str, entetes: dict, corps: dict | None = None) -> dict:
@@ -59,14 +66,14 @@ def _requete(methode: str, adresse: str, entetes: dict, corps: dict | None = Non
             return json.loads(reponse.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode("utf-8", "replace")
-        try:
-            erreur = json.loads(detail)
-            message = (erreur.get("error") or {}).get("message") if isinstance(erreur.get("error"), dict) \
-                else erreur.get("error") or erreur.get("message")
-        except ValueError:
-            message = detail[:200]
+        message = _message_erreur(detail)
         if exc.code in (401, 403):
             raise ErreurIA(f"clé refusée ({exc.code}) : {message or 'vérifiez la clé'}") from None
+        conseil = re.search(r"use (?:models/)?([\w.-]+) for", message or "")
+        if exc.code == 404 and conseil:
+            raise ErreurIA(f"modèle retiré par le fournisseur : {message}", conseil.group(1)) from None
+        if exc.code == 503:
+            raise ErreurIA("le fournisseur est surchargé en ce moment (503) : réessayez dans un instant") from None
         if exc.code == 429:
             raise ErreurIA("trop de demandes ou crédit épuisé chez le fournisseur (429)") from None
         raise ErreurIA(f"erreur {exc.code} : {message or detail[:200]}") from None
@@ -74,6 +81,22 @@ def _requete(methode: str, adresse: str, entetes: dict, corps: dict | None = Non
         raise ErreurIA(f"impossible de joindre le service ({exc.reason})") from None
     except TimeoutError:
         raise ErreurIA("le service n'a pas répondu à temps") from None
+
+
+def _message_erreur(detail: str) -> str:
+    """Le message lisible d'une réponse d'erreur, quelle que soit sa forme (objet, liste chez Gemini, texte)."""
+    try:
+        erreur = json.loads(detail)
+    except ValueError:
+        return detail[:200]
+    if isinstance(erreur, list) and erreur:
+        erreur = erreur[0]
+    if not isinstance(erreur, dict):
+        return str(erreur)[:200]
+    interne = erreur.get("error", erreur)
+    if isinstance(interne, dict):
+        return str(interne.get("message") or interne)[:300]
+    return str(interne or erreur.get("message") or "")[:300]
 
 
 def _entetes(fournisseur: Fournisseur, cle: str) -> dict:
@@ -90,9 +113,18 @@ def modeles(fournisseur: Fournisseur, cle: str, adresse: str = "") -> list[str]:
     return [n.removeprefix("models/") for n in noms if n]
 
 
+def _version(texte: str) -> tuple[int, ...]:
+    return tuple(int(n) for n in texte.split("."))
+
+
 def choisir_modele(fournisseur: Fournisseur, disponibles: list[str]) -> str:
     if fournisseur.modele_defaut and (not disponibles or fournisseur.modele_defaut in disponibles):
         return fournisseur.modele_defaut
+    if fournisseur.motif:
+        versions = [(m, re.fullmatch(fournisseur.motif, m)) for m in disponibles]
+        versions = [(m, _version(r.group(1))) for m, r in versions if r]
+        if versions:
+            return max(versions, key=lambda v: v[1])[0]
     for mot in fournisseur.prefere:
         trouves = [m for m in disponibles if mot in m.lower() and "embed" not in m.lower() and "audio" not in m.lower()]
         if trouves:

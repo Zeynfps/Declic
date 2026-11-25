@@ -90,8 +90,18 @@ class Assistant(Module):
         cle = self.contexte.plateforme.secret_lire(fournisseur.cle) if fournisseur.avec_cle else ""
         if fournisseur.avec_cle and not cle:
             raise ia_api.ErreurIA(f"clé de {fournisseur.nom} introuvable : enregistrez-la à nouveau")
-        reponse = ia_api.demander(fournisseur, cle or "", reglage.get("modele", ""), SYSTEME, consigne,
-                                  reglage.get("adresse", ""))
+        try:
+            reponse = ia_api.demander(fournisseur, cle or "", reglage.get("modele", ""), SYSTEME, consigne,
+                                      reglage.get("adresse", ""))
+        except ia_api.ErreurIA as exc:
+            if not exc.modele_conseille:
+                raise
+            # Modèle retiré : on passe à celui que le fournisseur conseille, et on le garde
+            reponse = ia_api.demander(fournisseur, cle or "", exc.modele_conseille, SYSTEME, consigne,
+                                      reglage.get("adresse", ""))
+            reglages = self._reglages()
+            reglages["fournisseurs"][fournisseur.cle]["modele"] = exc.modele_conseille
+            self._ecrire(reglages)
         return fournisseur.nom.split(" (")[0], reponse
 
     # --- Commandes ------------------------------------------------------------------------

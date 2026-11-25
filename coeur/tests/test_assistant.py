@@ -93,8 +93,26 @@ class TestAssistant(unittest.TestCase):
         claude = ia_api.FOURNISSEURS["claude"]
         self.assertEqual(ia_api.choisir_modele(claude, ["claude-opus-5-5", "claude-haiku-5-5"]), "claude-opus-5-5")
         gemini = ia_api.FOURNISSEURS["gemini"]
-        self.assertEqual(ia_api.choisir_modele(gemini, ["text-embedding-004", "gemini-2.5-pro", "gemini-2.5-flash"]),
-                         "gemini-2.5-flash")
+        disponibles = ["text-embedding-004", "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-3.5-flash-lite",
+                       "gemini-3.10-flash-lite", "gemini-3.1-flash-lite-preview", "gemini-3.8-flash-lite-tts"]
+        self.assertEqual(ia_api.choisir_modele(gemini, disponibles), "gemini-3.10-flash-lite")
+        self.assertEqual(ia_api.choisir_modele(gemini, ["gemini-2.5-pro", "gemini-2.5-flash"]), "gemini-2.5-flash")
+
+    def test_modele_retire_remplace_tout_seul(self):
+        self._configurer()
+        retire = ia_api.ErreurIA("modèle retiré", "deepseek-v9")
+        with mock.patch.object(ia_api, "demander", side_effect=[retire, "Bonjour"]) as appel:
+            reponse = self.registre.executer("assistant.demander", "dis bonjour")
+        self.assertEqual(reponse.texte, "Bonjour")
+        self.assertEqual(appel.call_args.args[2], "deepseek-v9")
+        reglages = json.loads((self.chemins.config / "ia.json").read_text(encoding="utf-8"))
+        self.assertEqual(reglages["fournisseurs"]["deepseek"]["modele"], "deepseek-v9")
+
+    def test_messages_d_erreur_lisibles(self):
+        gemini = '[{"error": {"code": 404, "message": "This model models/gemini-2.5-flash is no longer available. Please update your code to use models/gemini-3.8-flash for the latest."}}]'
+        self.assertIn("no longer available", ia_api._message_erreur(gemini))
+        self.assertEqual(ia_api._message_erreur('{"error": {"message": "invalid x-api-key"}}'), "invalid x-api-key")
+        self.assertEqual(ia_api._message_erreur("pas du json"), "pas du json")
 
 
 if __name__ == "__main__":
