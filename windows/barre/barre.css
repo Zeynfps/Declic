@@ -453,3 +453,6 @@ body:not(.visible) .colonne { opacity: 0; transform: translateY(6px); }
     rgba(var(--barre), var(--opacite));
   pointer-events: none;
 }
+
+/* Réponse de l'IA : police normale, lignes coupées au mot */
+.texte.prose { font-family: "Segoe UI Variable Text", "Segoe UI", sans-serif; font-size: 14.5px; line-height: 1.55; white-space: pre-wrap; }

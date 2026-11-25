@@ -444,7 +444,7 @@ class Barre {
     this.viderListe();
     this.resultats = [];
     if (vue.message) this.liste.append(this.section(vue.message));
-    this.liste.append(el('div', 'texte', vue.texte));
+    this.liste.append(el('div', vue.prose ? 'texte prose' : 'texte', vue.texte)); // prose : réponse de l'IA
     this.liste.scrollTop = 0;
     this.afficherVide(false);
     this.majPied();
@@ -1289,7 +1289,8 @@ class Barre {
         if (reponse.message) window.declic.osd(reponse.message);
       } else if (reponse.texte) {
         this.empiler({ type: 'texte', titre: resultat.titre, message: reponse.message, texte: reponse.texte,
-          remplacable: Boolean(this.selection) && resultat.commande.startsWith('assistant.') });
+          remplacable: Boolean(this.selection) && resultat.commande.startsWith('assistant.'),
+          prose: resultat.commande.startsWith('assistant.') });
       } else {
         this.toast(reponse.message || (reponse.statut === 'ok' ? 'Fait' : 'Échec'), reponse.statut === 'ok' ? 'info' : 'erreur');
         if (this.vue.type === 'recherche') this.majSelection();
