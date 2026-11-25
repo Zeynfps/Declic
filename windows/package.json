@@ -22,7 +22,7 @@
     "publish": null,
     "files": [
       "main.js", "preload.js", "preload-fond.js", "preload-osd.js",
-      "capture.js", "fenetres.js", "logos.js", "premier-plan.js",
+      "capture.js", "fenetres.js", "logos.js", "premier-plan.js", "selection.js", "depot.js",
       "barre/**", "icones/**", "package.json",
       "!node_modules/koffi/{doc,src,vendor}/**",
       "!node_modules/koffi/build/koffi/!(win32_x64)/**"

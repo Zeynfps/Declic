@@ -1,6 +1,6 @@
 'use strict';
 // Ce que la page de la barre peut demander au processus principal. Le jeton de l'API n'y passe jamais.
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 const appeler = async (canal, ...args) => {
   const r = await ipcRenderer.invoke(canal, ...args);
@@ -37,4 +37,16 @@ contextBridge.exposeInMainWorld('declic', {
   surPage: (fn) => ipcRenderer.on('barre:page', (_e, url) => fn(url)),
   surSelection: (fn) => ipcRenderer.on('barre:selection', (_e, texte, refus) => fn(texte, refus)),
   surRaccourciCapte: (fn) => ipcRenderer.on('barre:raccourci-capte', (_e, raccourci) => fn(raccourci)),
+  surPosition: (fn) => ipcRenderer.on('barre:position', (_e, position) => fn(position)),
+  panneaux: {
+    lireNote: () => appeler('panneau:note-lire'),
+    ecrireNote: (texte) => appeler('panneau:note-ecrire', texte),
+    listerDepot: () => appeler('panneau:depot-lister'),
+    // chemins des fichiers glissés sur le dépôt (seul le preload peut les lire)
+    deposer: (fichiers) => appeler('panneau:depot-ajouter', [...fichiers].map((f) => webUtils.getPathForFile(f)).filter(Boolean)),
+    supprimerDepot: (nom) => appeler('panneau:depot-supprimer', nom),
+    ouvrirDepot: (nom) => appeler('panneau:depot-ouvrir', nom),
+    dossierDepot: () => appeler('panneau:depot-dossier'),
+    glisserDepot: (nom) => ipcRenderer.send('panneau:depot-glisser', nom),
+  },
 });

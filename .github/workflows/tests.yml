@@ -45,4 +45,4 @@ jobs:
         run: for f in windows/*.js windows/barre/*.js; do node --check "$f"; done
       - name: Tests de la barre Windows
         working-directory: windows
-        run: node --test tests/fenetres.test.js
+        run: node --test tests/*.test.js

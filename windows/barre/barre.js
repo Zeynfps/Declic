@@ -65,7 +65,12 @@ class Barre {
     $('principal').addEventListener('click', () => this.valider());
     $('bouton-actions').addEventListener('click', () => this.basculerActions());
     // Un clic à côté de la barre la ferme, en gardant la vue (la fenêtre est un peu plus grande que la barre)
-    document.addEventListener('mousedown', (e) => { if (!$('barre').contains(e.target)) this.fermer(true); });
+    // Un clic à côté de la barre et des panneaux la ferme, en gardant la vue
+    document.addEventListener('mousedown', (e) => {
+      if (!$('barre').contains(e.target) && !e.target.closest?.('.panneau')) this.fermer(true);
+    });
+    this.panneaux = new Panneaux(this);
+    window.declic.surPosition((position) => this.panneaux.placer(position));
     // Le focus ne quitte pas la barre (sauf vers un champ de formulaire)
     $('barre').addEventListener('mousedown', (e) => {
       if (!e.target.closest('input, textarea, .champ')) e.preventDefault();
@@ -107,6 +112,7 @@ class Barre {
     this.majSaisieSelection();
     this.ouverte = true;
     this.appliquerApparence();
+    this.panneaux.afficher(this.reglages);
     const garde = this.etatGarde;
     this.etatGarde = null;
     if (garde) {
@@ -133,6 +139,7 @@ class Barre {
 
   // La fenêtre vient d'être cachée (par la page, un clic ailleurs ou le raccourci)
   quand_ferme(garder) {
+    this.panneaux.masquer();
     this.etatGarde = garder ? this.etatAGarder() : null;
     this.ouverte = false;
     clearTimeout(this.minuteur);
@@ -651,6 +658,11 @@ class Barre {
   // --- Clavier ----------------------------------------------------------------------
   toucheClavier(e) {
     if (!this.ouverte) return;
+    // Dans un panneau (bloc-notes…), les touches lui reviennent ; Échap ferme quand même
+    if (e.target.closest?.('.panneau') && !this.captureRaccourci) {
+      if (e.key === 'Escape') { e.preventDefault(); this.fermer(true); }
+      return;
+    }
     if (this.captureRaccourci) { this.capturerRaccourci(e); return; }
     const ctrl = e.ctrlKey;
     const cle = e.key;
@@ -774,6 +786,28 @@ class Barre {
       maj: () => demarrage.classList.toggle('actif', demarre),
       titreAction: () => (demarre ? 'Ne plus démarrer avec Windows' : 'Démarrer avec Windows'),
     });
+
+    this.liste.append(this.section('Panneaux autour de la barre'));
+    for (const [cle, titre, nomIcone] of [
+      ['panneauPressePapiers', 'Presse-papiers', 'edit-paste-symbolic'],
+      ['panneauApplications', 'Applications épinglées', 'view-app-grid-symbolic'],
+      ['panneauNotes', 'Bloc-notes', 'document-edit-symbolic'],
+      ['panneauDepot', 'Dépôt de fichiers', 'folder-symbolic'],
+    ]) {
+      const interrupteur = el('span', 'interrupteur');
+      const actif = () => this.reglages[cle] !== false;
+      const basculer = async (valeur) => {
+        await this.regler({ [cle]: valeur });
+        interrupteur.classList.toggle('actif', actif());
+        this.majPied();
+      };
+      this.ajouterReglage(nomIcone, titre, [interrupteur], true, {
+        activer: () => basculer(!actif()),
+        ajuster: (sens) => basculer(sens > 0),
+        maj: () => interrupteur.classList.toggle('actif', actif()),
+        titreAction: () => (actif() ? 'Masquer' : 'Afficher'),
+      });
+    }
 
     this.liste.append(this.section('Contenu'));
     this.ajouterReglage('view-list-symbolic', 'Mes liens, snippets…', [icone('go-next-symbolic', 14, 'icone type')], true, {

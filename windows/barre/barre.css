@@ -40,9 +40,13 @@ kbd {
 
 /* La barre est dessinée dans une fenêtre transparente un peu plus grande qu'elle (place pour l'ombre).
    Sa teinte (--opacite) règle ce qu'on voit à travers : l'arrière-plan flouté et assombri, autour et derrière. */
+/* La fenêtre couvre l'écran : la barre est placée par main.js (--barre-x/--barre-y), les panneaux autour */
 .barre {
   position: absolute;
-  inset: 32px;
+  left: var(--barre-x, 32px);
+  top: var(--barre-y, 32px);
+  width: 750px;
+  height: 466px;
   display: flex;
   flex-direction: column;
   border-radius: 14px;
@@ -363,4 +367,89 @@ input[type="range"]::-webkit-slider-thumb {
   background: #f2f2f2;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
   cursor: pointer;
+}
+
+/* --- Panneaux autour de la barre (comme la Game Bar) --- */
+.colonne {
+  position: absolute;
+  top: var(--barre-y, 32px);
+  width: var(--colonne-l, 300px);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  transition: opacity 0.14s ease-out, transform 0.14s ease-out;
+}
+.colonne.gauche { left: calc(var(--barre-x, 32px) - 24px - var(--colonne-l, 300px)); }
+.colonne.droite { left: calc(var(--barre-x, 32px) + 750px + 24px); }
+body:not(.visible) .colonne { opacity: 0; transform: translateY(6px); }
+.panneau {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background: transparent; /* verre et teinte : ::before et ::after */
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.40), inset 0 1px 0 rgba(255, 255, 255, 0.10);
+  padding: 10px;
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.panneau-entete { display: flex; align-items: center; gap: 8px; padding: 2px 4px 6px; color: rgba(255, 255, 255, 0.62); }
+.panneau-titre { flex: 1; font-size: 12.5px; font-weight: 600; letter-spacing: 0.02em; }
+.panneau-vide { font-size: 12.5px; color: rgba(255, 255, 255, 0.45); padding: 6px 4px 8px; line-height: 1.4; }
+.panneau-bouton {
+  border: 0; background: transparent; color: rgba(255, 255, 255, 0.6); border-radius: 6px;
+  width: 24px; height: 24px; display: grid; place-items: center; cursor: pointer; flex: none;
+}
+.panneau-bouton:hover { background: rgba(255, 255, 255, 0.10); color: #fff; }
+.panneau-ligne {
+  border: 0; background: transparent; color: #fff; text-align: left; border-radius: 8px; padding: 7px 8px;
+  display: flex; flex-direction: column; gap: 2px; cursor: pointer; font: inherit;
+}
+.panneau-ligne:hover { background: rgba(255, 255, 255, 0.08); }
+.panneau-ligne-titre { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.panneau-ligne-detail { font-size: 11.5px; color: rgba(255, 255, 255, 0.45); }
+.panneau-grille { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.panneau-appli {
+  border: 0; background: transparent; color: #fff; border-radius: 10px; padding: 8px 4px; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; gap: 6px; font: inherit; min-width: 0;
+}
+.panneau-appli:hover { background: rgba(255, 255, 255, 0.08); }
+.panneau-appli-nom { font-size: 11px; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.panneau-note {
+  min-height: 150px; resize: vertical; border: 0; outline: none; border-radius: 8px; padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.06); color: #fff; font: 13.5px/1.45 "Segoe UI Variable Text", "Segoe UI", sans-serif;
+}
+.panneau-note:focus { background: rgba(255, 255, 255, 0.09); }
+.panneau-depot {
+  min-height: 90px; border: 1.5px dashed rgba(255, 255, 255, 0.18); border-radius: 10px; padding: 4px;
+  display: flex; flex-direction: column; gap: 2px; transition: background 0.12s, border-color 0.12s;
+}
+.panneau-depot.survol { background: rgba(53, 132, 228, 0.18); border-color: #3584e4; }
+.panneau-fichier { display: flex; align-items: center; gap: 8px; padding: 5px 6px; border-radius: 8px; cursor: grab; }
+.panneau-fichier:hover { background: rgba(255, 255, 255, 0.08); }
+.panneau-fichier-icone { width: 20px; height: 20px; flex: none; }
+.panneau-fichier-nom { flex: 1; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Verre des panneaux : l'écran derrière, flouté (même image que la barre, placée par panneaux.js) */
+.panneau::before {
+  content: "";
+  position: absolute;
+  inset: -40px;
+  z-index: -1;
+  background-image: var(--ecran-image, none);
+  background-repeat: no-repeat;
+  background-size: var(--ecran-l, 100vw) var(--ecran-h, 100vh);
+  background-position: calc(var(--px, 0px) + 40px) calc(var(--py, 0px) + 40px);
+  filter: blur(var(--flou-verre, 12px)) saturate(1.5);
+}
+.panneau::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(180deg, rgba(255, 255, 255, var(--reflet, 0.06)) 0%, rgba(255, 255, 255, 0) 45%),
+    rgba(var(--barre), var(--opacite));
+  pointer-events: none;
 }

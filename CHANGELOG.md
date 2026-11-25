@@ -2,6 +2,16 @@
 
 ## À venir
 
+- **L'IA dans la barre**, avec la clé de votre choix (bouton + → « Clé d'IA ») : Claude, ChatGPT, Gemini, DeepSeek,
+  Mistral, OpenRouter, Groq, Grok, ou Ollama sur le PC (gratuit). Clés gardées dans le trousseau du système.
+  « ia question » répond dans la barre ; toute recherche propose aussi « Demander à … ici ».
+- **Texte sélectionné** (Windows, Alt+Maj+Espace) : traduire, corriger, reformuler, résumer, expliquer, rendre plus
+  formel, ou poser une question sur le texte ; Ctrl+Entrée remplace la sélection par la réponse. Jamais dans un
+  terminal ni un jeu en plein écran ; le presse-papiers est remis comme avant.
+- **Panneaux autour de la barre** (Windows), comme la Game Bar : presse-papiers, applications épinglées, bloc-notes
+  enregistré tout seul, dépôt de fichiers (glisser-déposer, dans un sens comme dans l'autre). Chacun se masque dans
+  les réglages.
+- Les deux raccourcis (ouvrir Déclic, texte sélectionné) se changent dans les réglages, au clavier.
 - Les bascules (Bluetooth, Wi-Fi, Ne pas déranger, mode avion, thème sombre…) affichent leur état dans la
   barre : « Activé » ou « Désactivé », avec un petit interrupteur.
 

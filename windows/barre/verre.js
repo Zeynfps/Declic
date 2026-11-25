@@ -64,11 +64,17 @@ function appliquerVerre({ teinte, base, reflet, flouVerre }) {
 // Image de l'écran, placée pour que la barre en montre exactement la partie qui est derrière elle
 function placerEcran(ecran) {
   const verre = document.getElementById('verre');
+  const racine = document.documentElement.style;
   if (!ecran) {
     verre.hidden = true;
     verre.style.backgroundImage = '';
+    racine.removeProperty('--ecran-image');
     return;
   }
+  // la même image sert au verre des panneaux autour de la barre (panneaux.js)
+  racine.setProperty('--ecran-image', `url("${ecran.image}")`);
+  racine.setProperty('--ecran-l', `${ecran.largeur}px`);
+  racine.setProperty('--ecran-h', `${ecran.hauteur}px`);
   preparerLentille();
   verre.style.backgroundImage = `url("${ecran.image}")`;
   verre.style.backgroundSize = `${ecran.largeur}px ${ecran.hauteur}px`;

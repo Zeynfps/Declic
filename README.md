@@ -19,6 +19,8 @@ IA, changer un réglage du système ou lancer une de vos automatisations, sans q
 | **Calculatrice** | `15% de 240`, `(3+4)*2`, `100 km en miles`, nombres au format français ; Entrée copie le résultat |
 | **Liens de recherche** | Un mot-clé puis la recherche : `wiki Gergovie`, `scholar céramique`, `persee …`, `hal …`, `gallica …` ; ajoutez les vôtres avec le bouton **+** |
 | **Questions aux IA** | `gpt …`, `claude …`, `gemini …` ouvrent le navigateur et envoient la question ; toute recherche propose aussi « Demander à … » |
+| **IA dans la barre** | Avec votre clé (Claude, ChatGPT, Gemini, DeepSeek, Mistral, OpenRouter, Groq, Grok) ou Ollama en local : `ia question` répond dans la barre. Sous Windows, **Alt+Maj+Espace** agit sur le texte sélectionné : traduire, corriger, reformuler, résumer, expliquer |
+| **Panneaux** | Sous Windows, autour de la barre comme la Game Bar : presse-papiers, applications épinglées, bloc-notes, dépôt de fichiers (glisser-déposer) |
 | **Favoris** | **Ctrl+Maj+F** sur un résultat l'épingle en haut de la barre vide (une appli, un réglage, une recherche, une question) |
 | **Presse-papiers** | `pp` liste ce que vous avez copié (`pp mot` pour filtrer) ; Entrée le recolle là où vous étiez. Ce que les gestionnaires de mots de passe marquent comme secret n'est jamais gardé |
 | **Snippets** | Textes réutilisables avec variables (`{date}`, `{heure}`, `{jour}`, `{annee}`) |

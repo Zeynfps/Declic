@@ -8,6 +8,7 @@
 //   - Icône dans la zone de notification : ouvrir, réglages, démarrer avec Windows, quitter.
 
 const { app, BrowserWindow, globalShortcut, ipcMain, Menu, Tray, nativeImage, screen, clipboard, shell } = require('electron');
+const depot = require('./depot');
 const { spawn, spawnSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
@@ -37,6 +38,11 @@ const REGLAGES_PAR_DEFAUT = {
   raccourci: RACCOURCI_PAR_DEFAUT,
   raccourciSelection: 'Alt+Shift+Space', // copie le texte sélectionné et ouvre Déclic avec les actions (IA…)
   nombreResultats: 8,
+  // Panneaux autour de la barre (comme la Game Bar) : chacun s'active ou non dans les réglages
+  panneauPressePapiers: true,
+  panneauApplications: true,
+  panneauNotes: true,
+  panneauDepot: true,
   ...APPARENCE_PAR_DEFAUT,
   python: '',
 };
@@ -244,7 +250,13 @@ function ouvrir() {
   appliquerApparence(reglages);
   if (a.fondUtile) fond.showInactive();
   // 2. la barre par-dessus
-  fenetre.setBounds(position);
+  fenetre.setBounds(ecran.bounds);
+  fenetre.webContents.send('barre:position', {
+    x: position.x - ecran.bounds.x + fenetres.MARGE,
+    y: position.y - ecran.bounds.y + fenetres.MARGE,
+    largeur: ecran.bounds.width,
+    hauteur: ecran.bounds.height,
+  });
   fenetre.webContents.send('barre:ouverture', reglages);
   fenetre.show();
   fenetre.focus();
@@ -442,7 +454,8 @@ gerer('api:elements', (type) => requete('GET', `/v1/elements?type=${encodeURICom
 gerer('api:supprimer', (type, cle) => requete('POST', '/v1/supprimer', { type: String(type), cle: String(cle) }));
 gerer('barre:reglages', () => lireReglages());
 gerer('barre:regler', (modifs) => {
-  const permis = ['nombreResultats', ...Object.keys(APPARENCE_PAR_DEFAUT)];
+  const permis = ['nombreResultats', 'panneauPressePapiers', 'panneauApplications', 'panneauNotes', 'panneauDepot',
+    ...Object.keys(APPARENCE_PAR_DEFAUT)];
   const propres = Object.fromEntries(Object.entries(modifs ?? {}).filter(([k]) => permis.includes(k)));
   const reglages = ecrireReglages(propres);
   appliquerApparence(reglages);
@@ -473,6 +486,26 @@ ipcMain.on('fond:clic', () => { if (ouverte) fermer(true); });
 gerer('barre:osd', (message) => afficherOsd(message));
 gerer('barre:copier', (texte) => clipboard.writeText(String(texte ?? '')));
 gerer('barre:icone-fichier', (chemin) => iconeFichier(chemin));
+// Panneaux : bloc-notes et dépôt de fichiers (dossier %APPDATA%\Declic)
+gerer('panneau:note-lire', () => depot.lireNote(DOSSIER_CONFIG));
+gerer('panneau:note-ecrire', (texte) => depot.ecrireNote(DOSSIER_CONFIG, String(texte ?? '')));
+gerer('panneau:depot-lister', async () => Promise.all(depot.lister(DOSSIER_CONFIG).map(async (f) => ({
+  ...f, icone: await iconeFichier(f.chemin).catch(() => null),
+}))));
+gerer('panneau:depot-ajouter', (chemins) => depot.ajouter(DOSSIER_CONFIG, Array.isArray(chemins) ? chemins.map(String) : []));
+gerer('panneau:depot-supprimer', (nom) => depot.supprimer(DOSSIER_CONFIG, String(nom)));
+gerer('panneau:depot-ouvrir', async (nom) => {
+  const erreur = await shell.openPath(depot.chemin(DOSSIER_CONFIG, String(nom)));
+  if (erreur) throw new Error(erreur);
+  fermer();
+});
+gerer('panneau:depot-dossier', () => shell.openPath(depot.dossier(DOSSIER_CONFIG)));
+// Glisser un fichier du dépôt vers une autre application
+ipcMain.on('panneau:depot-glisser', async (evenement, nom) => {
+  const chemin = depot.chemin(DOSSIER_CONFIG, String(nom));
+  const icone = await iconeFichier(chemin).catch(() => null);
+  evenement.sender.startDrag({ file: chemin, icon: icone ? nativeImage.createFromDataURL(icone) : path.join(__dirname, 'icones', 'declic.png') });
+});
 
 
 // ---------- Démarrage ----------

@@ -23,6 +23,9 @@ déclenchées par le PC (heure, Wi-Fi, verrouillage, alimentation, ouverture de 
 3. **Actions sur le texte sélectionné** : traduire, reformuler, résumer, corriger, chercher, changer la casse.
    Réponse de l'IA affichée **dans la barre** (clé d'API ou modèle local comme Ollama), plus seulement dans le
    navigateur.
+   **Fait** sous Windows (Alt+Maj+Espace, 9 fournisseurs d'IA, réponse dans la barre, remplacer la sélection), et
+   panneaux façon Game Bar autour de la barre. Reste : sélection et panneaux sous GNOME (sélection « primaire »).
+
 4. **Fenêtres** : passer d'une fenêtre à l'autre, fermer une application, ranger en moitiés ou en quarts,
    envoyer sur l'autre écran, dispositions enregistrées (« Mode révision » : PDF à gauche, notes à droite).
 5. **Synchronisation des réglages** entre ses PC, Linux et Windows (liens, snippets, favoris, règles), et
