@@ -1,6 +1,6 @@
 # Journal des versions
 
-## À venir
+## 0.2.0 — Windows (25 novembre 2026)
 
 - **Windows** (10 et 11) : barre Electron ouverte par Alt+Espace, identique à celle de GNOME (vues, actions
   Ctrl+K, favoris, ajouts, réglages), icône dans la zone de notification, démarrage avec Windows, installateur
