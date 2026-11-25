@@ -1,6 +1,6 @@
 # Journal des versions
 
-## À venir
+## 0.3.0 — Mode jeu et presse-papiers (25 novembre 2026)
 
 - **Historique du presse-papiers** : `pp` dans la barre liste les 200 derniers textes copiés (`pp mot` filtre) ;
   Entrée recolle directement dans l'application d'où l'on vient (Windows ; sous GNOME, le texte est copié et

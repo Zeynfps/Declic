@@ -1,7 +1,7 @@
 {
   "name": "declic-windows",
   "productName": "Declic",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Déclic pour Windows : la barre de commande (Alt+Espace) et le service Déclic.",
   "author": "rZey'n",
   "homepage": "https://github.com/Zeynfps/Declic",

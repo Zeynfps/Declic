@@ -28,15 +28,17 @@ fi
 echo "→ Recherche de la dernière version"
 adresse=$(curl -fsSL "https://api.github.com/repos/$DEPOT/releases" | python3 -c '
 import json, sys
-for version in json.load(sys.stdin):
-    if version["tag_name"].endswith("-linux") and not version.get("draft"):
-        for fichier in version["assets"]:
-            if fichier["name"].endswith(".tar.gz"):
-                print(version["tag_name"], fichier["browser_download_url"])
-                sys.exit()
+for version in json.load(sys.stdin):  # de la plus récente à la plus ancienne
+    if version.get("draft"):
+        continue
+    for fichier in version["assets"]:
+        if fichier["name"].endswith("-linux.tar.gz"):
+            print(version["tag_name"], fichier["browser_download_url"])
+            sys.exit()
 sys.exit("aucune version Linux publiée")')
 version=${adresse%% *}
-echo "→ Téléchargement de Déclic ${version%-linux}"
+version=${version%-linux}
+echo "→ Téléchargement de Déclic ${version#v}"
 temporaire=$(mktemp -d)
 trap 'rm -rf "$temporaire"' EXIT
 curl -fsSL "${adresse#* }" -o "$temporaire/declic.tar.gz"
