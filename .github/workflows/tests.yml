@@ -27,3 +27,22 @@ jobs:
           node-version: "22"
       - name: Syntaxe de l'extension
         run: for f in gnome/*/*.js; do node --check "$f"; done
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Tests du cœur et de la plateforme Windows
+        working-directory: coeur
+        run: python -m unittest -v
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Syntaxe de la barre Windows
+        shell: bash
+        run: for f in windows/*.js windows/barre/*.js; do node --check "$f"; done
+      - name: Tests de la barre Windows
+        working-directory: windows
+        run: node --test tests/fenetres.test.js

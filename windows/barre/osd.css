@@ -1,0 +1,13 @@
+html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
+body { display: flex; align-items: center; justify-content: center; font: 13px "Segoe UI Variable Text", "Segoe UI", sans-serif; }
+.osd {
+  max-width: 400px;
+  padding: 10px 18px;
+  border-radius: 12px;
+  background: rgba(28, 28, 31, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  color: #ececec;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

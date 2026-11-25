@@ -34,5 +34,11 @@
       <summary>Opacité du fond de la barre (en %)</summary>
       <description>En dessous de 100 %, l'arrière-plan (flouté ou non) transparaît dans la barre.</description>
     </key>
+    <key name="assombrir-barre" type="i">
+      <range min="0" max="100"/>
+      <default>0</default>
+      <summary>Assombrissement du fond de la barre (en %)</summary>
+      <description>De 0 (gris graphite) à 100 (noir).</description>
+    </key>
   </schema>
 </schemalist>

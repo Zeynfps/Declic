@@ -30,14 +30,15 @@ const ICONE_PAR_DEFAUT = 'system-run-symbolic';
 const TOUCHES_ENTREE = [Clutter.KEY_Return, Clutter.KEY_KP_Enter, Clutter.KEY_ISO_Enter];
 const DUREE_FLOU_MS = 160;
 const LARGEUR_CURSEUR = 240;
-const COULEUR_BARRE = '28, 28, 31';
-const CLES_APPARENCE = ['flou-actif', 'flou-rayon', 'flou-assombrissement', 'opacite-barre'];
+const COULEUR_BARRE = [28, 28, 31]; // graphite ; « Assombrir la barre » le rapproche du noir
+const CLES_APPARENCE = ['flou-actif', 'flou-rayon', 'flou-assombrissement', 'opacite-barre', 'assombrir-barre'];
 
 // Réglages à curseur : clé GSettings, bornes, pas des flèches ← →, unité affichée
 const CURSEURS = [
     {cle: 'flou-rayon', titre: 'Intensité du flou', icone: 'weather-fog-symbolic', min: 0, max: 100, pas: 5, unite: ' px', flou: true},
     {cle: 'flou-assombrissement', titre: "Assombrir l'arrière-plan", icone: 'display-brightness-symbolic', min: 0, max: 80, pas: 5, unite: ' %'},
     {cle: 'opacite-barre', titre: 'Opacité de la barre', icone: 'view-reveal-symbolic', min: 40, max: 100, pas: 5, unite: ' %'},
+    {cle: 'assombrir-barre', titre: 'Assombrir la barre', icone: 'display-brightness-symbolic', min: 0, max: 100, pas: 5, unite: ' %'},
 ];
 
 const TYPES = {
@@ -1073,7 +1074,9 @@ export class Barre {
         } else {
             flou.radius = rayon;
         }
-        this._panneau?.set_style(`background-color: rgba(${COULEUR_BARRE}, ${s.get_int('opacite-barre') / 100});`);
+        const clair = 1 - s.get_int('assombrir-barre') / 100;
+        const couleur = COULEUR_BARRE.map(c => Math.round(c * clair)).join(', ');
+        this._panneau?.set_style(`background-color: rgba(${couleur}, ${s.get_int('opacite-barre') / 100});`);
         this._reglages.forEach(r => r.maj());
         if (this._vue?.type === 'reglages')
             this._majPied();

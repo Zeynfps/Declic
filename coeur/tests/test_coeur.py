@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import tempfile
 import threading
 import unittest
@@ -223,7 +224,7 @@ class TestRegistre(BaseRegistre):
     def test_fichiers_par_nom(self):
         racine = Path(self._dossier.name)
         rapport = racine / "Rapport de fouille 2021.pdf"
-        rapport.write_text("x")
+        rapport.write_text("x", encoding="utf-8")
         cache = racine / "node_modules" / "rapport fouille.js"
         self.registre.historique.fermer()
         self.plateforme = PlateformeAvecFichiers([
@@ -346,8 +347,14 @@ class TestRegistre(BaseRegistre):
         self.assertTrue(all(r.confirmer for r in resultats if r.commande == "systeme.vider-corbeille"))
 
     def test_script_personnel(self):
-        script = self.chemins.scripts / "bonjour.sh"
-        script.write_text("#!/bin/sh\n# @declic titre: Dire bonjour\n# @declic argument: nom\necho \"Bonjour $1\"\n")
+        if sys.platform == "win32":  # pas de « sh » sous Windows : un script .cmd, l'équivalent natif
+            script = self.chemins.scripts / "bonjour.cmd"
+            script.write_text("@echo off\r\nREM @declic titre: Dire bonjour\r\nREM @declic argument: nom\r\necho Bonjour %~1\r\n",
+                              encoding="utf-8")
+        else:
+            script = self.chemins.scripts / "bonjour.sh"
+            script.write_text("#!/bin/sh\n# @declic titre: Dire bonjour\n# @declic argument: nom\necho \"Bonjour $1\"\n",
+                              encoding="utf-8")
         self.registre.recharger()
         premier = self.registre.rechercher("dire bonjour")[0]
         self.assertEqual(premier.commande, "script.bonjour")
@@ -372,7 +379,7 @@ class TestCreation(BaseRegistre):
         self.assertEqual(r["statut"], "ok", r)
         self.assertEqual(r["remplir"], "inrap ")
         import tomllib
-        donnees = tomllib.loads(self.chemins.liens.read_text())
+        donnees = tomllib.loads(self.chemins.liens.read_text(encoding="utf-8"))
         self.assertEqual(donnees["lien"][0]["url"], "https://www.inrap.fr/recherche?search_api_fulltext={requete}&page=0")
         # utilisable tout de suite, sans relancer le service
         res = self.registre.rechercher("inrap fibules")
@@ -391,11 +398,11 @@ class TestCreation(BaseRegistre):
         self.assertEqual(self._creer("lien", nom="B", mot_cle="a", adresse="https://b.fr/?q={requete}")["champ"], "mot_cle")
 
     def test_fichier_existant_conserve_et_caracteres_speciaux(self):
-        self.chemins.liens.write_text('# mes liens\n[[lien]]\nnom = "Persée bis"\nmot_cle = "pb"\nurl = "https://p.fr/?q={requete}"\n')
+        self.chemins.liens.write_text('# mes liens\n[[lien]]\nnom = "Persée bis"\nmot_cle = "pb"\nurl = "https://p.fr/?q={requete}"\n', encoding="utf-8")
         self.registre.recharger()
         r = self._creer("lien", nom='Le "site" \\ ça', mot_cle="s", adresse="https://s.fr/?q={requete}")
         self.assertEqual(r["statut"], "ok", r)
-        contenu = self.chemins.liens.read_text()
+        contenu = self.chemins.liens.read_text(encoding="utf-8")
         self.assertTrue(contenu.startswith("# mes liens"))
         self.assertIn("pb", self.registre.modules[3].perso)
         self.assertEqual(self.registre.modules[3].perso["s"].nom, 'Le "site" \\ ça')
@@ -413,13 +420,13 @@ class TestCreation(BaseRegistre):
     def test_lister_et_supprimer_lien(self):
         self.chemins.liens.write_text(
             '# en-tête à garder\n\n[[lien]]\nnom = "A"\nmot_cle = "a"\nurl = "https://a.fr/?q={requete}"\n'
-            '# note sur B\n[[lien]]\nnom = "Mon Google"\nmot_cle = "g"  # remplace Google\nurl = "https://g.fr/?q={requete}"\n')
+            '# note sur B\n[[lien]]\nnom = "Mon Google"\nmot_cle = "g"  # remplace Google\nurl = "https://g.fr/?q={requete}"\n', encoding="utf-8")
         self.registre.recharger()
         self.assertEqual([e.cle for e in self.registre.elements("lien")], ["a", "g"])
         r = self.registre.supprimer("lien", "g")
         self.assertEqual(r["statut"], "ok", r)
         self.assertIn("Google", r["message"])  # « g » renvoie de nouveau vers Google
-        contenu = self.chemins.liens.read_text()
+        contenu = self.chemins.liens.read_text(encoding="utf-8")
         self.assertIn("# en-tête à garder", contenu)
         self.assertIn('nom = "A"', contenu)
         self.assertNotIn("Mon Google", contenu)
@@ -488,7 +495,7 @@ quand = "manuel"
         import datetime as dt
         self.maintenant = dt.datetime(2026, 11, 16, 23, 15)  # un lundi soir
         self.plateforme.notifier = lambda titre, message="": self.plateforme.appels.append(("notifier", titre, message))
-        self.chemins.regles.write_text(self.REGLES)
+        self.chemins.regles.write_text(self.REGLES, encoding="utf-8")
         self.auto = self.registre.automatisations
         self.auto.synchrone = True
         self.auto.horloge = lambda: self.maintenant
@@ -544,7 +551,7 @@ quand = "manuel"
     def test_modele_cree(self):
         self.chemins.regles.unlink()
         self.registre.recharger()
-        self.assertIn("[[regle]]", self.chemins.regles.read_text())
+        self.assertIn("[[regle]]", self.chemins.regles.read_text(encoding="utf-8"))
         self.assertEqual((self.auto.regles, self.auto.erreurs), ([], []))  # exemples commentés
 
 
@@ -637,7 +644,7 @@ class TestIdentifiantsEtBlocs(BaseRegistre):
             "ouvrir": "moodle.univ.fr", "connexion": "ent-fac", "commandes": "systeme.verrouiller, notifier:Bonne journée"})
         self.assertEqual(r["statut"], "ok", r)
         import tomllib
-        bloc = tomllib.loads(self.chemins.regles.read_text())["regle"][0]
+        bloc = tomllib.loads(self.chemins.regles.read_text(encoding="utf-8"))["regle"][0]
         self.assertEqual(bloc["quand"], {"evenement": "wifi.connecte", "valeur": "Wifi-Fac"})
         self.assertEqual(bloc["si"], {"jours": ["semaine"]})
         self.assertEqual(bloc["alors"], ["liens.ouvrir:https://moodle.univ.fr", "identifiants.connexion:ent-fac",
@@ -665,7 +672,7 @@ class TestServeur(BaseRegistre):
         self.serveur = creer_serveur(self.registre, port=0)
         self.fil = threading.Thread(target=self.serveur.serve_forever, daemon=True)
         self.fil.start()
-        infos = json.loads(self.chemins.serveur.read_text())
+        infos = json.loads(self.chemins.serveur.read_text(encoding="utf-8"))
         self.port, self.jeton = infos["port"], infos["jeton"]
 
     def tearDown(self):
@@ -705,7 +712,7 @@ class TestServeur(BaseRegistre):
 
     def test_declencheur_par_api(self):
         self.chemins.regles.write_text('[[regle]]\nnom = "Maison"\nquand = { telephone = "arrivee", lieu = "maison" }\n'
-                                       'alors = ["liens.ouvrir:https://maison.fr"]\n')
+                                       'alors = ["liens.ouvrir:https://maison.fr"]\n', encoding="utf-8")
         self.registre.recharger()
         self.registre.automatisations.synchrone = True
         r = self._requete("/v1/declencheur", {"evenement": "telephone.arrivee", "valeur": "maison"})

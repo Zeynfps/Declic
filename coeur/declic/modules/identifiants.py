@@ -119,7 +119,10 @@ class Identifiants(Module):
 
     # --- Ajout, liste, suppression ------------------------------------------------------------
     def creations(self) -> list[Creation]:
-        if not self.contexte.plateforme.prend_en_charge("coffre_enregistrer"):
+        plateforme = self.contexte.plateforme
+        # Un identifiant ne sert qu'à remplir une page de connexion : sans cette saisie, on ne propose pas
+        # d'en enregistrer.
+        if not (plateforme.prend_en_charge("coffre_enregistrer") and plateforme.prend_en_charge("saisir_identifiant")):
             return []
         return [Creation(
             type="identifiant", titre="Identifiant de site", titre_pluriel="Identifiants de sites",

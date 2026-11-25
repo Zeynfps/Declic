@@ -3,3 +3,4 @@ __pycache__/
 ressources/
 .venv/
 gnome/*/schemas/gschemas.compiled
+node_modules/
