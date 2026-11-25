@@ -79,8 +79,10 @@ Désinstaller : `powershell -ExecutionPolicy Bypass -File windows\installer.ps1 
 La barre Windows fonctionne comme celle de GNOME : mêmes vues, mêmes raccourcis, mêmes commandes et mêmes
 réglages. Autour de la barre, l'écran est flouté et assombri (deux curseurs) ; la barre elle-même est en verre
 dépoli, avec une opacité et une teinte réglables (« Assombrir la barre »). Toutes les fonctions du tableau
-ci-dessus sont disponibles, y compris l'éclairage nocturne, Ne pas déranger, le mode avion, le remplissage des
-identifiants et l'envoi automatique des questions aux IA (Firefox, Chrome, Edge, Brave, Opera, Vivaldi). La
+ci-dessus sont disponibles, y compris Ne pas déranger, le mode avion, le remplissage des identifiants et l'envoi
+automatique des questions aux IA (Firefox, Chrome, Edge, Brave, Opera, Vivaldi). Seule exception pour
+l'instant : l'éclairage nocturne ne s'applique pas encore à l'écran sur les Windows 11 récents
+(voir [docs/windows-eclairage-nocturne.md](docs/windows-eclairage-nocturne.md)). La
 recherche de fichiers utilise un index des dossiers personnels (Bureau, Documents, Téléchargements, Images,
 Musique, Vidéos, OneDrive) tenu par Déclic.
 

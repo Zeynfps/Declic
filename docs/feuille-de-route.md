@@ -18,5 +18,6 @@ déclenchées par le PC (heure, Wi-Fi, verrouillage, alimentation, ouverture de 
   (application Android, automatisations Raccourcis sur iPhone) : « quand j'arrive à la maison… ».
 - Dispositions de fenêtres, bureaux virtuels, notes rapides, captures d'écran, sessions de concentration.
 - Extensions écrites par d'autres, avec un format simple (liste, détail, formulaire).
-- Autres bureaux que GNOME. Windows : fait (0.2), avec les mêmes fonctions que sous GNOME ; à venir, une
-  version installable en un seul fichier.
+- Autres bureaux que GNOME. Windows : fait (0.2), avec les mêmes fonctions que sous GNOME ; à venir,
+  l'éclairage nocturne sur les Windows 11 récents (voir `windows-eclairage-nocturne.md`) et une version
+  installable en un seul fichier.

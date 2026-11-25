@@ -11,6 +11,8 @@
   thème sombre, éclairage nocturne, Ne pas déranger, fichiers cachés, Wi-Fi, Bluetooth, mode avion, volume et
   micro, touches multimédia, recherche de fichiers, Gestionnaire d'identifiants avec remplissage des pages de
   connexion, envoi automatique des questions aux IA, et déclencheurs (verrouillage, secteur/batterie, Wi-Fi).
+  Pas encore au point : l'éclairage nocturne, sans effet sur les Windows 11 récents
+  (voir `docs/windows-eclairage-nocturne.md`).
 - Nouveau réglage « Assombrir la barre » (du gris graphite au noir), sous GNOME comme sous Windows.
 - Tests : les fichiers de test sont écrits en UTF-8 explicite (sous Windows, l'encodage par défaut n'est pas
   l'UTF-8) ; tests propres à Windows et vérification sous Windows dans l'intégration continue.
