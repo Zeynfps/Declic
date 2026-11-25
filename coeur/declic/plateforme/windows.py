@@ -941,33 +941,112 @@ class PlateformeWindows(Plateforme):
     def basculer_bluetooth(self) -> bool:
         return self._basculer_radio("Bluetooth")
 
-    def basculer_mode_avion(self) -> bool:
+    @staticmethod
+    def _mode_avion(nouveau: bool | None = None) -> bool:
+        """Mode avion actuel ; avec « nouveau », le change d'abord. Renvoie l'état final."""
         radios = _objet_com(_CLSID_RADIOS, _IID_RADIOS, "Mode avion")
         try:
+            if nouveau is not None:  # SetSystemRadioState : 1 = radios allumées, donc mode avion coupé
+                _verifier(_methode(radios, 6, ctypes.c_int)(radios, 0 if nouveau else 1), "Mode avion")
+                return nouveau
             allumees, inutile, raison = ctypes.c_int(), ctypes.c_int(), ctypes.c_int()
             P = ctypes.POINTER(ctypes.c_int)
             _verifier(_methode(radios, 5, P, P, P)(radios, ctypes.byref(allumees), ctypes.byref(inutile),
                                                    ctypes.byref(raison)), "Mode avion")
-            avion = bool(allumees.value)  # radios allumées → on passe en mode avion
-            _verifier(_methode(radios, 6, ctypes.c_int)(radios, 0 if avion else 1), "Mode avion")
-            return avion
+            return not allumees.value
         finally:
             _liberer(radios)
 
-    def basculer_ne_pas_deranger(self) -> bool:
+    def basculer_mode_avion(self) -> bool:
+        return self._mode_avion(not self._mode_avion())
+
+    @staticmethod
+    def _ne_pas_deranger(nouveau: bool | None = None) -> bool:
+        """« Ne pas déranger » actuel ; avec « nouveau », le change d'abord. Renvoie l'état final."""
         heures = _objet_com(_CLSID_HEURES_CALMES, _IID_HEURES_CALMES, "Ne pas déranger")
         try:
+            if nouveau is not None:
+                _verifier(_methode(heures, 4, wt.LPCWSTR)(heures, PROFIL_NE_PAS_DERANGER if nouveau else PROFIL_LIBRE),
+                          "Ne pas déranger")
+                return nouveau
             profil = ctypes.c_void_p()
             _verifier(_methode(heures, 3, ctypes.POINTER(ctypes.c_void_p))(heures, ctypes.byref(profil)),
                       "Ne pas déranger")
             actuel = ctypes.wstring_at(profil.value) if profil.value else PROFIL_LIBRE
             ctypes.windll.ole32.CoTaskMemFree(profil)
-            actif = actuel == PROFIL_LIBRE
-            _verifier(_methode(heures, 4, wt.LPCWSTR)(heures, PROFIL_NE_PAS_DERANGER if actif else PROFIL_LIBRE),
-                      "Ne pas déranger")
-            return actif
+            return actuel != PROFIL_LIBRE
         finally:
             _liberer(heures)
+
+    def basculer_ne_pas_deranger(self) -> bool:
+        return self._ne_pas_deranger(not self._ne_pas_deranger())
+
+    def etat_bascule(self, nom: str) -> bool:
+        if nom == "ne_pas_deranger":
+            return self._ne_pas_deranger()
+        if nom == "mode_avion":
+            return self._mode_avion()
+        if nom == "theme_sombre":
+            return _lire_registre(self._THEME, "AppsUseLightTheme", 1) == 0
+        if nom == "fichiers_caches":
+            return _lire_registre(self._EXPLORATEUR, "Hidden", 2) == 1
+        if nom in ("wifi", "bluetooth"):
+            return self.etat_radio("WiFi" if nom == "wifi" else "Bluetooth")
+        if nom == "eclairage_nocturne":
+            cles = _cles_eclairage_nocturne()
+            if not cles:
+                return False
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, cles[0]) as k:
+                return eclairage_nocturne_actif(bytes(winreg.QueryValueEx(k, "Data")[0]))
+        raise NonPrisEnCharge(f"État inconnu : {nom}")
+
+    # --- Programmes ouverts ----------------------------------------------------------
+    def processus(self) -> dict[str, str]:
+        """Programmes de la session de l'utilisateur (les services de Windows sont ignorés)."""
+        psapi, k = ctypes.WinDLL("psapi"), ctypes.WinDLL("kernel32", use_last_error=True)
+        k.OpenProcess.argtypes = [wt.DWORD, wt.BOOL, wt.DWORD]
+        k.OpenProcess.restype = wt.HANDLE
+        k.QueryFullProcessImageNameW.argtypes = [wt.HANDLE, wt.DWORD, wt.LPWSTR, ctypes.POINTER(wt.DWORD)]
+        k.CloseHandle.argtypes = [wt.HANDLE]
+        k.ProcessIdToSessionId.argtypes = [wt.DWORD, ctypes.POINTER(wt.DWORD)]
+        ids = (wt.DWORD * 4096)()
+        taille = wt.DWORD()
+        if not psapi.EnumProcesses(ids, ctypes.sizeof(ids), ctypes.byref(taille)):
+            return {}
+        ma_session, session = wt.DWORD(), wt.DWORD()
+        k.ProcessIdToSessionId(os.getpid(), ctypes.byref(ma_session))
+        tampon = ctypes.create_unicode_buffer(1024)
+        trouves: dict[str, str] = {}
+        for pid in ids[:taille.value // ctypes.sizeof(wt.DWORD)]:
+            if not pid or not k.ProcessIdToSessionId(pid, ctypes.byref(session)) or session.value != ma_session.value:
+                continue
+            poignee = k.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+            if not poignee:
+                continue
+            try:
+                longueur = wt.DWORD(len(tampon))
+                if k.QueryFullProcessImageNameW(poignee, 0, tampon, ctypes.byref(longueur)):
+                    chemin = tampon.value
+                    trouves.setdefault(os.path.splitext(os.path.basename(chemin))[0], chemin)
+            finally:
+                k.CloseHandle(poignee)
+        return trouves
+
+    def fermer_application(self, nom: str) -> int:
+        """Comme la croix de la fenêtre ; si le programme est encore là après 5 secondes (beaucoup se rangent
+        dans la zone de notification), il est arrêté."""
+        nom = os.path.splitext(nom.strip())[0]
+        ouverts = [n for n in self.processus() if n.casefold() == nom.casefold()]
+        if not ouverts:
+            return 0
+        image = f"{ouverts[0]}.exe"
+        _executer(["taskkill", "/IM", image], timeout=10)
+        for _ in range(10):
+            time.sleep(0.5)
+            if not any(n.casefold() == nom.casefold() for n in self.processus()):
+                return len(ouverts)
+        _executer(["taskkill", "/IM", image, "/T", "/F"], timeout=10)
+        return len(ouverts)
 
     def basculer_eclairage_nocturne(self) -> bool:
         cles = _cles_eclairage_nocturne()

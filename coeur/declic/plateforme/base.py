@@ -115,6 +115,21 @@ class Plateforme:
     def basculer_mode_avion(self) -> bool:
         self._absent("basculer le mode avion")
 
+    def etat_bascule(self, nom: str) -> bool:
+        """État actuel d'une bascule, sans la changer. nom : la fin de « basculer_… » (« ne_pas_deranger »,
+        « wifi »…). Sert à « activer » et « désactiver » sans basculer deux fois."""
+        self._absent("lire l'état d'un réglage")
+
+    # --- Programmes ouverts (déclencheurs « application » et « jeu ») -----------------
+    def processus(self) -> dict[str, str]:
+        """Programmes en cours de l'utilisateur : nom (sans extension, ex. « Discord ») → chemin de l'exécutable."""
+        self._absent("lister les programmes ouverts")
+
+    def fermer_application(self, nom: str) -> int:
+        """Demande à un programme de se fermer (comme la croix de sa fenêtre). Renvoie le nombre de processus
+        concernés (0 s'il n'était pas ouvert)."""
+        self._absent("fermer une application")
+
     # --- Réseau --------------------------------------------------------------------
     def reseaux_wifi_connus(self) -> list[str]:
         """Noms des Wi-Fi enregistrés sur la machine (pour choisir un déclencheur)."""

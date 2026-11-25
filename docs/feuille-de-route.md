@@ -14,6 +14,8 @@ déclenchées par le PC (heure, Wi-Fi, verrouillage, alimentation, ouverture de 
 ## 0.3 : les cinq priorités
 1. **Mode jeu et éditeur d'automatisations dans la barre** (voir « Automatisations » plus bas) : quand un jeu se
    lance, Ne pas déranger, son réglé, messageries en silencieux ; tout revient comme avant à sa fermeture.
+   **Fait** : Mode jeu, déclencheurs jeu et application, conditions, activer/désactiver, fermer une application.
+   Reste : « Tester maintenant » et un journal plus lisible dans la barre.
 2. **Historique du presse-papiers** : chercher dans ce qu'on a copié et le recoller, épingler des éléments,
    garder les images, ne jamais enregistrer ce qui vient d'un gestionnaire de mots de passe.
 3. **Actions sur le texte sélectionné** : traduire, reformuler, résumer, corriger, chercher, changer la casse.

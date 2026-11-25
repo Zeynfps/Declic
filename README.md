@@ -25,7 +25,7 @@ IA, changer un réglage du système ou lancer une de vos automatisations, sans q
 | **Son et musique** | Volume, muet, micro, lecture/pause, piste suivante (toute application compatible MPRIS, ou sous Windows qui répond aux touches multimédia) |
 | **Scripts** | Vos propres scripts, déposés dans `~/.config/declic/scripts/` |
 | **Identifiants** | Remplit un formulaire de connexion avec un compte rangé dans le trousseau du système (Gestionnaire d'identifiants sous Windows), après avoir vérifié l'adresse de la page |
-| **Automatisations** | Règles « quand → si → alors » : à une heure donnée, en se connectant à un Wi-Fi, au déverrouillage, en branchant le chargeur… |
+| **Automatisations** | Règles « quand → si → alors » : à une heure donnée, en se connectant à un Wi-Fi, au lancement d'un jeu ou d'une application, au déverrouillage, en branchant le chargeur… ; **Mode jeu** prêt à l'emploi |
 
 La barre retient où vous en étiez : si vous la fermez en cliquant à côté ou avec Super+R, elle se rouvre au
 même endroit. Échap la remet à zéro.
@@ -117,7 +117,12 @@ Les mots de passe ne sont jamais écrits dans ces fichiers : ils restent dans le
 ### Automatisations
 
 Une règle = **quand** (déclencheur) + **si** (conditions, facultatif) + **alors** (actions). Les actions sont
-les commandes de la barre, plus `attendre:5` et `notifier:texte`.
+les commandes de la barre, plus `attendre:5` et `notifier:texte`. Le plus simple est de les créer depuis la
+barre (bouton **+** → Automatisation), sans toucher au fichier.
+
+**Mode jeu** (bouton **+** → Mode jeu) : quand vous lancez un jeu (Steam, Epic, Riot, GOG, Xbox, EA, Ubisoft,
+Lutris, Heroic), Déclic active Ne pas déranger, passe en mode performance, règle le volume ou ferme les
+applications que vous indiquez ; à la fermeture du jeu, tout revient comme avant.
 
 ```toml
 [[regle]]
@@ -134,7 +139,12 @@ alors = ["liens.ouvrir:https://moodle.exemple.fr", "son.volume-0"]
 
 Déclencheurs : `"manuel"`, `{ heure = "08:30", jours = [...] }`, `{ evenement = ... }`
 (`session.verrouillee`, `session.deverrouillee`, `alimentation.secteur`, `alimentation.batterie`,
-`wifi.connecte`, `wifi.deconnecte`, `reseau.connecte`, `declic.demarrage`).
+`wifi.connecte`, `wifi.deconnecte`, `reseau.connecte`, `declic.demarrage`, `jeu.lance`, `jeu.ferme`,
+`application.ouverte`, `application.fermee` avec `valeur = "Discord"`).
+Conditions : `jours`, `heure_entre`, `application = "Discord"` (si elle est ouverte), `jeu_en_cours = false`.
+Actions en plus des bascules : `systeme.ne-pas-deranger-activer` / `-desactiver` (aussi `wifi`, `bluetooth`,
+`mode-avion`, `theme-sombre`, `eclairage-nocturne`, `fichiers-caches`), et
+`systeme.fermer-application:Discord`.
 Vérifier ses règles : `python3 -m declic regles`, ou dans la barre, Réglages → « Mes automatisations ».
 
 ## Comment c'est construit

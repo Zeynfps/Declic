@@ -1,5 +1,17 @@
 # Journal des versions
 
+## À venir
+
+- **Mode jeu** (bouton + → Mode jeu) : au lancement d'un jeu, Ne pas déranger, mode performance, volume,
+  applications à fermer ; tout revient comme avant à la fermeture du jeu. Jeux reconnus d'après leur dossier
+  (Steam et Proton, Epic, Riot, GOG, Xbox, EA, Ubisoft, Lutris, Heroic), lanceurs et anti-triche exclus.
+- Automatisations : nouveaux déclencheurs « jeu lancé / fermé » et « application ouverte / fermée » ;
+  conditions « si telle application est ouverte » et « si un jeu tourne » ; actions « activer » et
+  « désactiver » (Ne pas déranger, Wi-Fi, Bluetooth, mode avion, thème sombre…) qui ne basculent pas deux fois,
+  et « fermer une application ». Le formulaire de la barre propose « remettre comme avant » à la fermeture.
+- Installation simplifiée : un `.exe` pour Windows (Python compris), une commande pour Linux ; fichiers
+  fabriqués par GitHub à chaque version.
+
 ## 0.2.0 — Windows (25 novembre 2026)
 
 - **Windows** (10 et 11) : barre Electron ouverte par Alt+Espace, identique à celle de GNOME (vues, actions

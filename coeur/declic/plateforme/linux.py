@@ -304,6 +304,81 @@ class PlateformeLinux(Plateforme):
     def basculer_mode_avion(self) -> bool:
         return self._rfkill("AirplaneMode")
 
+    def etat_bascule(self, nom: str) -> bool:
+        def booleen(schema, cle):
+            return self._reglages(schema).get_boolean(cle)
+
+        def rfkill(propriete):
+            return bool(self._lire_propriete(self.bus_session, "org.gnome.SettingsDaemon.Rfkill",
+                                             "/org/gnome/SettingsDaemon/Rfkill", "org.gnome.SettingsDaemon.Rfkill",
+                                             propriete))
+
+        lecteurs = {
+            "theme_sombre": lambda: self._reglages("org.gnome.desktop.interface").get_string("color-scheme")
+            == "prefer-dark",
+            "eclairage_nocturne": lambda: booleen("org.gnome.settings-daemon.plugins.color", "night-light-enabled"),
+            "ne_pas_deranger": lambda: not booleen("org.gnome.desktop.notifications", "show-banners"),
+            "fichiers_caches": lambda: booleen("org.gnome.nautilus.preferences", "show-hidden-files"),
+            "wifi": lambda: bool(self._lire_propriete(
+                self.bus_systeme, "org.freedesktop.NetworkManager", "/org/freedesktop/NetworkManager",
+                "org.freedesktop.NetworkManager", "WirelessEnabled")),
+            "bluetooth": lambda: not rfkill("BluetoothAirplaneMode"),
+            "mode_avion": lambda: rfkill("AirplaneMode"),
+        }
+        if nom not in lecteurs:
+            raise NonPrisEnCharge(f"État inconnu : {nom}")
+        return lecteurs[nom]()
+
+    # --- Programmes ouverts ----------------------------------------------------------
+    def processus(self) -> dict[str, str]:
+        """Programmes de l'utilisateur, lus dans /proc. Pour un jeu Windows lancé par Proton ou Wine, c'est le
+        .exe (et son chemin dans steamapps/common…) qui compte, pas wine."""
+        moi = os.getuid()
+        trouves: dict[str, str] = {}
+        for entree in os.scandir("/proc"):
+            if not entree.name.isdigit():
+                continue
+            try:
+                if entree.stat().st_uid != moi:
+                    continue
+                with open(f"/proc/{entree.name}/cmdline", "rb") as f:
+                    arguments = [a.decode("utf-8", "replace") for a in f.read().split(b"\0") if a]
+                chemin = next((a for a in arguments if a.lower().endswith(".exe")), "") \
+                    or os.readlink(f"/proc/{entree.name}/exe")
+            except OSError:
+                continue
+            nom = re.split(r"[\\/]", chemin)[-1]
+            if nom.lower().endswith(".exe"):
+                nom = nom[:-4]
+            if nom:
+                trouves.setdefault(nom, chemin.replace("\\", "/"))
+        return trouves
+
+    def fermer_application(self, nom: str) -> int:
+        import signal
+
+        nom = nom.strip().removesuffix(".exe")
+        moi, cibles = os.getuid(), []
+        for entree in os.scandir("/proc"):
+            if not entree.name.isdigit():
+                continue
+            try:
+                if entree.stat().st_uid != moi:
+                    continue
+                with open(f"/proc/{entree.name}/comm", encoding="utf-8", errors="replace") as f:
+                    commande = f.read().strip()
+                exe = os.path.basename(os.readlink(f"/proc/{entree.name}/exe"))
+            except OSError:
+                continue
+            if nom.casefold() in (commande.casefold(), exe.casefold()):
+                cibles.append(int(entree.name))
+        for pid in cibles:
+            try:
+                os.kill(pid, signal.SIGTERM)  # comme la croix de la fenêtre : l'application peut enregistrer
+            except OSError:
+                pass
+        return len(cibles)
+
     # --- Son (PipeWire) --------------------------------------------------------------
     # --- Réseau --------------------------------------------------------------------
     def reseaux_wifi_connus(self) -> list[str]:

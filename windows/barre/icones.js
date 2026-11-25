@@ -4,6 +4,7 @@
 // Un chemin de fichier (raccourci .lnk, document) est remplacé par l'icône que Windows lui donne.
 
 const TRAITS = {
+  manette: '<path d="M7.5 8h9a4.5 4.5 0 014.4 3.6l.9 4.6a2.4 2.4 0 01-4.3 1.9L16 16H8l-1.5 2.1a2.4 2.4 0 01-4.3-1.9l.9-4.6A4.5 4.5 0 017.5 8z"/><path d="M8 11v3M6.5 12.5h3M15.5 12h.01M17.5 13.5h.01"/>',
   recherche: '<circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5 5"/>',
   application: '<rect x="4" y="4" width="16" height="16" rx="4"/><path d="M9 12h6M12 9v6"/>',
   calcul: '<rect x="5" y="3" width="14" height="18" rx="2.5"/><path d="M8 7h8M8.5 12h.01M12 12h.01M15.5 12h.01M8.5 16h.01M12 16h.01M15.5 16h.01"/>',
@@ -59,7 +60,7 @@ const TRAITS = {
 
 // Nom d'icône du service → dessin (le premier motif qui correspond l'emporte)
 const CORRESPONDANCES = [
-  [/calculator/, 'calcul'], [/airplane/, 'avion'], [/volume-muted/, 'muet'], [/volume-low/, 'sonBas'],
+  [/input-gaming/, 'manette'], [/calculator/, 'calcul'], [/airplane/, 'avion'], [/volume-muted/, 'muet'], [/volume-low/, 'sonBas'],
   [/audio-volume/, 'son'], [/bluetooth/, 'bluetooth'], [/dialog-error/, 'erreur'], [/password/, 'cle'],
   [/dialog-warning/, 'alerte'], [/brightness/, 'luminosite'], [/document-edit/, 'crayon'], [/document-save/, 'enregistrer'],
   [/edit-clear/, 'effacer'], [/edit-copy/, 'copier'], [/edit-paste/, 'coller'], [/edit-undo/, 'annuler'],

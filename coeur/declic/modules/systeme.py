@@ -19,6 +19,36 @@ def _bascule(methode: str, actif: str, inactif: str):
     return action
 
 
+def _regler(bascule: str, voulu: bool, libelle: str):
+    """« Activer » ou « désactiver » : ne bascule que si l'état n'est pas déjà le bon."""
+    def action(contexte, _argument):
+        plateforme = contexte.plateforme
+        if plateforme.etat_bascule(bascule) != voulu:
+            getattr(plateforme, f"basculer_{bascule}")()
+        return Reponse(message=f"{libelle} : {'activé' if voulu else 'désactivé'}")
+    return action
+
+
+def _fermer_application(contexte, argument):
+    nom = (argument or "").strip()
+    if not nom:
+        return Reponse.erreur("Quelle application fermer ? (ex. systeme.fermer-application:Discord)")
+    nombre = contexte.plateforme.fermer_application(nom)
+    return Reponse(message=f"{nom} fermé" if nombre else f"{nom} n'était pas ouvert")
+
+
+# Bascules qui ont aussi « activer » et « désactiver » (pour les automatisations) : suffixe → (méthode, libellé)
+BASCULES = {
+    "ne-pas-deranger": ("ne_pas_deranger", "Ne pas déranger"),
+    "wifi": ("wifi", "Wi-Fi"),
+    "bluetooth": ("bluetooth", "Bluetooth"),
+    "mode-avion": ("mode_avion", "Mode avion"),
+    "theme-sombre": ("theme_sombre", "Thème sombre"),
+    "eclairage-nocturne": ("eclairage_nocturne", "Éclairage nocturne"),
+    "fichiers-caches": ("fichiers_caches", "Fichiers cachés"),
+}
+
+
 def _profil(profil: str, message: str):
     def action(contexte, _argument):
         contexte.plateforme.definir_profil_energie(profil)
@@ -31,7 +61,18 @@ class Systeme(Module):
 
     def commandes(self) -> list[Commande]:
         C = Commande
-        return [
+        # « Activer » / « désactiver » : cachées dans la barre (la bascule y suffit), utiles aux automatisations
+        reglages = [
+            C(f"systeme.{suffixe}-{sens}", f"{'Activer' if voulu else 'Désactiver'} : {libelle}",
+              _regler(methode, voulu, libelle), cachee=True, requiert="etat_bascule")
+            for suffixe, (methode, libelle) in BASCULES.items()
+            if self.contexte.plateforme.prend_en_charge(f"basculer_{methode}")
+            for sens, voulu in (("activer", True), ("desactiver", False))
+        ]
+        reglages.append(C("systeme.fermer-application", "Fermer une application", _fermer_application,
+                          argument="application", cachee=True, requiert="fermer_application",
+                          icone="window-close-symbolic"))
+        return reglages + [
             # Session et alimentation
             C("systeme.verrouiller", "Verrouiller l'écran", _simple("verrouiller", "Écran verrouillé"),
               icone="system-lock-screen-symbolic", mots_cles=("lock", "bloquer"), requiert="verrouiller"),

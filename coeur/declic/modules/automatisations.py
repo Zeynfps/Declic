@@ -31,6 +31,7 @@ from declic import fichiers_toml, texte
 from declic.modele import Champ, Commande, Creation, CreationRefusee, Element, Reponse
 from declic.modules import Module
 from declic.plateforme.base import NonPrisEnCharge
+from declic.programmes import SuiviProgrammes
 
 journal = logging.getLogger("declic.automatisations")
 
@@ -50,7 +51,12 @@ EVENEMENTS = {
     "wifi.deconnecte": "Déconnexion du Wi-Fi (valeur = nom du réseau quitté)",
     "telephone.arrivee": "Le téléphone arrive à un lieu (valeur = nom du lieu)",
     "telephone.depart": "Le téléphone quitte un lieu (valeur = nom du lieu)",
+    "application.ouverte": "Ouverture d'une application (valeur = nom du programme, ex. Discord)",
+    "application.fermee": "Fermeture d'une application (valeur = nom du programme)",
+    "jeu.lance": "Lancement d'un jeu (valeur = nom du jeu)",
+    "jeu.ferme": "Fermeture du jeu (plus aucun jeu ouvert)",
 }
+INTERVALLE_PROGRAMMES_S = 3  # relevé des programmes ouverts
 
 ATTENTE_MAX_S = 600
 MAX_ACTIONS = 50
@@ -71,9 +77,18 @@ MODELE = """# Automatisations de Déclic : « quand » quelque chose arrive, « 
 #                                                          wifi.connecte, wifi.deconnecte, reseau.connecte)
 #   quand = { evenement = "wifi.connecte", valeur = "eduroam" }
 #   quand = { telephone = "arrivee", lieu = "maison" }   (envoyé par le téléphone, bientôt)
+#   quand = { evenement = "jeu.lance" }                  (aussi : jeu.ferme, quand plus aucun jeu ne tourne)
+#   quand = { evenement = "application.ouverte", valeur = "Teams" }   (aussi : application.fermee)
 #
 # Conditions (facultatives) :
 #   si = { heure_entre = ["17:00", "23:00"], jours = ["sam", "dim"] }
+#   si = { application = "Discord" }       (seulement si Discord est ouvert ; plusieurs : ["Discord", "Spotify"])
+#   si = { jeu_en_cours = false }          (seulement si aucun jeu ne tourne)
+#
+# Actions « activer » et « désactiver » (sans effet si c'est déjà le cas), en plus des bascules :
+#   "systeme.ne-pas-deranger-activer", "systeme.ne-pas-deranger-desactiver" (aussi : wifi, bluetooth,
+#   mode-avion, theme-sombre, eclairage-nocturne, fichiers-caches)
+# Fermer une application : "systeme.fermer-application:Discord"
 #
 # Pour désactiver une règle sans l'effacer : actif = false
 # Après une modification : « Recharger la configuration de Déclic » dans la barre.
@@ -90,6 +105,16 @@ MODELE = """# Automatisations de Déclic : « quand » quelque chose arrive, « 
 # quand = { evenement = "wifi.connecte", valeur = "eduroam" }
 # si = { jours = ["lun", "mar", "mer", "jeu", "ven"] }
 # alors = ["son.volume-0", "liens.ouvrir:https://ent.univ.fr"]
+
+# [[regle]]
+# nom = "Mode jeu"
+# quand = { evenement = "jeu.lance" }
+# alors = ["systeme.ne-pas-deranger-activer", "systeme.energie-performance"]
+#
+# [[regle]]
+# nom = "Mode jeu (fin)"
+# quand = { evenement = "jeu.ferme" }
+# alors = ["systeme.ne-pas-deranger-desactiver", "systeme.energie-equilibre"]
 """
 
 
@@ -176,6 +201,10 @@ class Declencheur:
 class Conditions:
     heure_entre: Optional[tuple[dt.time, dt.time]] = None
     jours: frozenset[int] = frozenset(range(7))
+    applications: tuple[str, ...] = ()  # au moins une de ces applications est ouverte
+    jeu_en_cours: Optional[bool] = None
+
+    CLES = ("heure_entre", "jours", "application", "jeu_en_cours")
 
     @classmethod
     def lire(cls, si) -> "Conditions":
@@ -183,18 +212,28 @@ class Conditions:
             return cls()
         if not isinstance(si, dict):
             raise RegleInvalide("« si » doit être un tableau { … }")
-        inconnues = set(si) - {"heure_entre", "jours"}
+        inconnues = set(si) - set(cls.CLES)
         if inconnues:
-            raise RegleInvalide(f"« si » : condition inconnue {', '.join(sorted(inconnues))} (heure_entre, jours)")
+            raise RegleInvalide(f"« si » : condition inconnue {', '.join(sorted(inconnues))} ({', '.join(cls.CLES)})")
         plage = None
         if "heure_entre" in si:
             valeur = si["heure_entre"]
             if not isinstance(valeur, list) or len(valeur) != 2:
                 raise RegleInvalide("si.heure_entre : deux heures attendues, par exemple [\"17:00\", \"23:00\"]")
             plage = (_heure(valeur[0], "si.heure_entre"), _heure(valeur[1], "si.heure_entre"))
-        return cls(heure_entre=plage, jours=_jours(si.get("jours"), "si.jours"))
+        applications = si.get("application", [])
+        if isinstance(applications, str):
+            applications = [applications]
+        if not isinstance(applications, list) or not all(isinstance(a, str) and a.strip() for a in applications):
+            raise RegleInvalide("si.application : un nom de programme, ou une liste, par exemple [\"Discord\"]")
+        jeu = si.get("jeu_en_cours")
+        if jeu is not None and not isinstance(jeu, bool):
+            raise RegleInvalide("si.jeu_en_cours : true ou false")
+        return cls(heure_entre=plage, jours=_jours(si.get("jours"), "si.jours"),
+                   applications=tuple(a.strip() for a in applications), jeu_en_cours=jeu)
 
-    def remplies(self, maintenant: dt.datetime) -> bool:
+    def remplies(self, maintenant: dt.datetime, programmes: Optional[Callable[[], tuple[set, bool]]] = None) -> bool:
+        """programmes : renvoie (noms des programmes ouverts, un jeu tourne-t-il), lu seulement si besoin."""
         if maintenant.weekday() not in self.jours:
             return False
         if self.heure_entre:
@@ -202,6 +241,15 @@ class Conditions:
             h = maintenant.time().replace(second=0, microsecond=0)
             # une plage peut passer minuit : ["22:00", "06:00"]
             if not (debut <= h <= fin if debut <= fin else (h >= debut or h <= fin)):
+                return False
+        if self.applications or self.jeu_en_cours is not None:
+            if programmes is None:
+                return False
+            ouverts, jeu = programmes()
+            ouverts = {texte.normaliser(n) for n in ouverts}
+            if self.applications and not any(texte.normaliser(a) in ouverts for a in self.applications):
+                return False
+            if self.jeu_en_cours is not None and jeu != self.jeu_en_cours:
                 return False
         return True
 
@@ -298,7 +346,26 @@ class Automatisations(Module):
         self._deja: set[tuple[str, str]] = set()  # (règle, minute) : déclenchements horaires déjà faits
         self._arret = threading.Event()
         self._fil: Optional[threading.Thread] = None
+        self._fil_programmes: Optional[threading.Thread] = None
+        self.suivi = SuiviProgrammes()
         self.recharger()
+
+    # --- Programmes ouverts (conditions « application » et « jeu_en_cours ») ------------
+    def programmes(self) -> tuple[set, bool]:
+        if self.suivi.precedents is None:  # pas encore de relevé : on le fait maintenant
+            self.releve_programmes()
+        return set(self.suivi.precedents or {}), self.suivi.jeu_en_cours
+
+    def releve_programmes(self) -> list[tuple[str, str]]:
+        """Relève les programmes ouverts et lance les règles concernées (ouverture, fermeture, jeu)."""
+        plateforme = self.contexte.plateforme
+        if not plateforme.prend_en_charge("processus"):
+            self.suivi.precedents = self.suivi.precedents or {}
+            return []
+        evenements = self.suivi.comparer(plateforme.processus())
+        for evenement, valeur in evenements:
+            self.declencher(evenement, valeur)
+        return evenements
 
     # --- Lecture du fichier -------------------------------------------------------------
     def recharger(self) -> None:
@@ -343,7 +410,7 @@ class Automatisations(Module):
         maintenant = self.horloge()
         lancees = []
         for regle in list(self.regles):
-            if regle.actif and regle.quand.correspond(evenement, valeur) and regle.si.remplies(maintenant):
+            if regle.actif and regle.quand.correspond(evenement, valeur) and regle.si.remplies(maintenant, self.programmes):
                 self.lancer(regle, source or f"evenement:{evenement}")
                 lancees.append(regle.nom)
         if lancees:
@@ -360,7 +427,7 @@ class Automatisations(Module):
             q = regle.quand
             if (regle.actif and q.type == "heure" and (regle.id, minute) not in self._deja
                     and (maintenant.hour, maintenant.minute) == (q.heure.hour, q.heure.minute)
-                    and maintenant.weekday() in q.jours and regle.si.remplies(maintenant)):
+                    and maintenant.weekday() in q.jours and regle.si.remplies(maintenant, self.programmes)):
                 self._deja.add((regle.id, minute))
                 self.lancer(regle, "heure")
                 lancees.append(regle.nom)
@@ -424,13 +491,28 @@ class Automatisations(Module):
         self._fil = threading.Thread(target=boucle, daemon=True, name="horloge des règles")
         self._fil.start()
 
+        def surveiller_programmes():
+            while not self._arret.is_set():
+                try:
+                    self.releve_programmes()
+                except Exception:
+                    journal.exception("Relevé des programmes ouverts impossible")
+                self._arret.wait(INTERVALLE_PROGRAMMES_S)
+
+        if self.contexte.plateforme.prend_en_charge("processus"):
+            self._fil_programmes = threading.Thread(target=surveiller_programmes, daemon=True,
+                                                    name="programmes ouverts")
+            self._fil_programmes.start()
+
     def arreter(self) -> None:
         self._arret.set()
-        self._fil = None
+        self._fil = self._fil_programmes = None
 
     # --- Création par blocs depuis la barre (bouton +) ------------------------------------
     DECLENCHEURS = (
         ("manuel", "À la demande (depuis la barre)"),
+        ("jeu", "Quand je lance un jeu"),
+        ("application", "Quand j'ouvre une application"),
         ("wifi", "En me connectant à un Wi-Fi"),
         ("heure", "À une heure précise"),
         ("deverrouillage", "Quand je déverrouille l'écran"),
@@ -451,12 +533,19 @@ class Automatisations(Module):
             sites = plateforme.coffre_lister() if plateforme.prend_en_charge("coffre_lister") else []
         except Exception:
             sites = []
-        declencheurs = tuple(d for d in self.DECLENCHEURS if d[0] != "wifi" or wifis)
+        suivi = plateforme.prend_en_charge("processus")
+        declencheurs = tuple(d for d in self.DECLENCHEURS
+                             if (d[0] != "wifi" or wifis) and (d[0] not in ("jeu", "application") or suivi))
         champs = [
             Champ("nom", "Nom", exemple="Arrivée à la fac"),
             Champ("declencheur", "Quand", type="choix", options=declencheurs),
             Champ("wifi", "Wi-Fi", type="choix", options=tuple((w, w) for w in wifis), si=("declencheur", ("wifi",)),
                   aide="Les réseaux enregistrés sur cet ordinateur."),
+            Champ("application", "Application", exemple="Teams", si=("declencheur", ("application",)),
+                  aide="Le nom du programme, comme dans le Gestionnaire des tâches (sans « .exe »)."),
+            Champ("fin", "À la fermeture", type="choix", si=("declencheur", ("jeu", "application")),
+                  options=(("inverse", "Remettre comme avant (ce qui a été activé est désactivé)"),
+                           ("rien", "Ne rien faire"))),
             Champ("heure", "Heure", exemple="08:30", si=("declencheur", ("heure",))),
             Champ("jours", "Quels jours", type="choix",
                   options=(("tous", "Tous les jours"), ("semaine", "En semaine (lun → ven)"), ("week-end", "Le week-end"))),
@@ -469,12 +558,100 @@ class Automatisations(Module):
         champs.append(Champ("commandes", "Autres actions", obligatoire=False,
                             exemple="son.volume-25, systeme.ne-pas-deranger",
                             aide="Commandes de Déclic séparées par des virgules (liste : python3 -m declic commandes)."))
-        return [Creation(
+        creations = [Creation(
             type="automatisation", titre="Automatisation", titre_pluriel="Automatisations",
             icone="media-playback-start-symbolic",
-            description="Quand quelque chose arrive (un Wi-Fi, une heure…), Déclic fait les actions pour vous.",
+            description="Quand quelque chose arrive (un Wi-Fi, une heure, un jeu…), Déclic fait les actions pour vous.",
             champs=tuple(champs), creer=self._creer, lister=self._lister, supprimer=self._supprimer,
         )]
+        if suivi:
+            creations.append(self._creation_mode_jeu())
+        return creations
+
+    # --- Mode jeu : deux règles, au lancement du jeu et à sa fermeture -------------------
+    NOM_MODE_JEU = "Mode jeu"
+
+    def _creation_mode_jeu(self) -> Creation:
+        plateforme = self.contexte.plateforme
+        champs = []
+        if plateforme.prend_en_charge("basculer_ne_pas_deranger"):
+            champs.append(Champ("ne_pas_deranger", "Notifications", type="choix",
+                                options=(("oui", "Ne pas déranger pendant le jeu"), ("non", "Les laisser"))))
+        if plateforme.prend_en_charge("definir_profil_energie"):
+            champs.append(Champ("energie", "Performances", type="choix",
+                                options=(("performance", "Mode performance pendant le jeu"), ("non", "Ne pas changer"))))
+        if plateforme.prend_en_charge("definir_volume"):
+            champs.append(Champ("volume", "Volume pendant le jeu", exemple="40", obligatoire=False,
+                                aide="De 0 à 100 ; vide pour ne pas changer."))
+        champs.append(Champ("fermer", "Applications à fermer au lancement", exemple="OneDrive, Teams",
+                            obligatoire=False, aide="Séparées par des virgules ; elles ne sont pas rouvertes après."))
+        return Creation(
+            type="mode-jeu", titre="Mode jeu", titre_pluriel="Mode jeu", icone="input-gaming-symbolic",
+            description="Quand vous lancez un jeu (Steam, Epic, Riot, GOG, Xbox…) : pas de notifications, plus de "
+                        "performances… et tout revient comme avant quand vous le fermez.",
+            champs=tuple(champs), creer=self._creer_mode_jeu,
+            lister=lambda: [e for e in self._lister() if e.titre.startswith(self.NOM_MODE_JEU)],
+            supprimer=self._supprimer_mode_jeu,
+        )
+
+    def _creer_mode_jeu(self, valeurs: dict) -> Reponse:
+        debut, fin = [], []
+        if valeurs.get("ne_pas_deranger", "non") == "oui":
+            debut.append("systeme.ne-pas-deranger-activer")
+            fin.append("systeme.ne-pas-deranger-desactiver")
+        if valeurs.get("energie", "non") == "performance":
+            debut.append("systeme.energie-performance")
+            fin.append("systeme.energie-equilibre")
+        volume = valeurs.get("volume", "").strip().rstrip("%").strip()
+        if volume:
+            if not volume.isdigit() or int(volume) > 100:
+                raise CreationRefusee("Volume attendu entre 0 et 100.", "volume")
+            debut.append(f"son.regler:{int(volume)}")
+        for appli in valeurs.get("fermer", "").replace("\n", ",").split(","):
+            if appli.strip():
+                debut.append(f"systeme.fermer-application:{appli.strip().removesuffix('.exe')}")
+        if not debut:
+            raise CreationRefusee("Choisissez au moins une chose à faire pendant le jeu.")
+        blocs = [{"nom": self.NOM_MODE_JEU, "quand": {"evenement": "jeu.lance"}, "alors": debut}]
+        if fin:
+            blocs.append({"nom": f"{self.NOM_MODE_JEU} (fin)", "quand": {"evenement": "jeu.ferme"}, "alors": fin})
+        self._supprimer_mode_jeu(None)  # le recréer remplace l'ancien
+        self._ajouter(blocs)
+        return Reponse(message="Mode jeu prêt : il s'active au lancement d'un jeu", fermer=False)
+
+    def _supprimer_mode_jeu(self, _cle) -> Reponse:
+        noms = {self.NOM_MODE_JEU, f"{self.NOM_MODE_JEU} (fin)"}
+
+        def garder(entree):
+            return str(entree.get("nom", "")).strip() not in noms
+
+        fichiers_toml.retirer_bloc(self.contexte.chemins.regles, "regle", garder)
+        self.recharger()
+        return Reponse(message="Mode jeu supprimé", fermer=False)
+
+    def _ajouter(self, blocs: list[dict]) -> list[Regle]:
+        """Vérifie toutes les règles, puis les écrit dans regles.toml."""
+        regles = [Regle.lire(b) for b in blocs]  # même validation que le fichier
+        for regle in regles:
+            if any(r.id == regle.id for r in self.regles):
+                raise CreationRefusee(f"Une automatisation s'appelle déjà « {regle.nom} ».", "nom")
+        for bloc in blocs:
+            fichiers_toml.ajouter_bloc(self.contexte.chemins.regles, "regle", bloc, entete=MODELE)
+        self.recharger()
+        return regles
+
+    @staticmethod
+    def actions_inverses(actions: list[str]) -> list[str]:
+        """Ce qui défait ces actions, quand c'est possible : activer ↔ désactiver, performance → équilibré."""
+        inverses = []
+        for action in actions:
+            if action.endswith("-activer"):
+                inverses.append(action.removesuffix("-activer") + "-desactiver")
+            elif action.endswith("-desactiver"):
+                inverses.append(action.removesuffix("-desactiver") + "-activer")
+            elif action == "systeme.energie-performance":
+                inverses.append("systeme.energie-equilibre")
+        return inverses
 
     def _creer(self, valeurs: dict) -> Reponse:
         nom = valeurs.get("nom", "").strip()
@@ -499,6 +676,13 @@ class Automatisations(Module):
             quand = {"heure": heure}
             if jours != "tous":
                 quand["jours"] = [jours]
+        elif type_ == "jeu":
+            quand = {"evenement": "jeu.lance"}
+        elif type_ == "application":
+            appli = valeurs.get("application", "").strip().removesuffix(".exe")
+            if not appli:
+                raise CreationRefusee("Indiquez le nom de l'application.", "application")
+            quand = {"evenement": "application.ouverte", "valeur": appli}
         elif type_ in self._EVENEMENT:
             quand = {"evenement": self._EVENEMENT[type_]}
         else:
@@ -531,12 +715,16 @@ class Automatisations(Module):
         if jours != "tous" and type_ != "heure":
             bloc["si"] = {"jours": [jours]}
         bloc["alors"] = alors
-        regle = Regle.lire(bloc)  # même validation que le fichier
-        if any(r.id == regle.id for r in self.regles):
-            raise CreationRefusee(f"Une automatisation s'appelle déjà « {nom} ».", "nom")
-        fichiers_toml.ajouter_bloc(self.contexte.chemins.regles, "regle", bloc, entete=MODELE)
-        self.recharger()
-        return Reponse(message=f"« {nom} » ajoutée : {regle.quand.resume()}", fermer=False,
+        blocs = [bloc]
+        # Jeu ou application : à la fermeture, défaire ce qui peut l'être (activer ↔ désactiver…)
+        inverses = self.actions_inverses(alors) if type_ in ("jeu", "application") else []
+        if inverses and valeurs.get("fin", "inverse") == "inverse":
+            fin = {"nom": f"{nom} (fin)", "quand": dict(quand), "alors": inverses}
+            fin["quand"]["evenement"] = "jeu.ferme" if type_ == "jeu" else "application.fermee"
+            blocs.append(fin)
+        regle = self._ajouter(blocs)[0]
+        suite = " (et l'inverse à la fermeture)" if len(blocs) > 1 else ""
+        return Reponse(message=f"« {nom} » ajoutée : {regle.quand.resume()}{suite}", fermer=False,
                        remplir=nom if type_ == "manuel" else "")
 
     def _lister(self) -> list[Element]:
