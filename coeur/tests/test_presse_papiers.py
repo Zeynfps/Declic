@@ -72,5 +72,18 @@ class TestPressePapiers(unittest.TestCase):
         self.assertEqual({r.module for r in self.registre.rechercher("pp", 8)}, {"pp"})
 
 
+    def test_cles_et_jetons_jamais_gardes(self):
+        from declic.modules.presse_papiers import ressemble_a_un_secret
+        faux = ["AIzaSyD" + "x" * 32, "AQ.Ab8RN6" + "Zz9" * 12, "sk-ant-api03-" + "aB3" * 15, "ghp_" + "Ab1" * 12,
+                "Xk9" * 12]
+        for cle in faux:
+            self.assertTrue(ressemble_a_un_secret(cle), cle[:8])
+            self.assertFalse(self.pp.ajouter(cle))
+        for normal in ["Bonjour tout le monde", "https://exemple.fr/une/adresse/tres/longue/sans/espaces/123ABC",
+                       r"C:\Users\Moi\Documents\Rapport2026Final.docx", "prenom.nom@exemple.fr",
+                       "abcdefghijklmnopqrstuvwxyzabcdefghij", "0123456789"]:
+            self.assertFalse(ressemble_a_un_secret(normal), normal)
+
+
 if __name__ == "__main__":
     unittest.main()

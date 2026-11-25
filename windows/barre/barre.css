@@ -456,3 +456,15 @@ body:not(.visible) .colonne { opacity: 0; transform: translateY(6px); }
 
 /* Réponse de l'IA : police normale, lignes coupées au mot */
 .texte.prose { font-family: "Segoe UI Variable Text", "Segoe UI", sans-serif; font-size: 14.5px; line-height: 1.55; white-space: pre-wrap; }
+
+/* Panneaux déplacés : placés librement, redimensionnables par le coin */
+.panneaux-libres { position: absolute; inset: 0; pointer-events: none; }
+.panneaux-libres .panneau { position: absolute; width: var(--colonne-l, 300px); pointer-events: auto; resize: both;
+  min-width: 220px; min-height: 90px; }
+body:not(.visible) .panneaux-libres { opacity: 0; }
+.panneau-entete { cursor: grab; user-select: none; }
+.panneau.deplace { box-shadow: 0 22px 50px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.12); }
+.panneau.deplace .panneau-entete { cursor: grabbing; }
+.panneau-ia-titre { font-size: 13px; padding: 4px 4px 0; }
+.panneau-ia-detail { padding: 0 4px 6px; display: block; }
+.panneaux-libres .panneau-note { flex: 1; }

@@ -791,6 +791,7 @@ class Barre {
     for (const [cle, titre, nomIcone] of [
       ['panneauPressePapiers', 'Presse-papiers', 'edit-paste-symbolic'],
       ['panneauApplications', 'Applications épinglées', 'view-app-grid-symbolic'],
+      ['panneauIA', 'IA : requêtes restantes', 'user-available-symbolic'],
       ['panneauNotes', 'Bloc-notes', 'document-edit-symbolic'],
       ['panneauDepot', 'Dépôt de fichiers', 'folder-symbolic'],
     ]) {
@@ -808,6 +809,11 @@ class Barre {
         titreAction: () => (actif() ? 'Masquer' : 'Afficher'),
       });
     }
+
+    this.ajouterReglage('edit-undo-symbolic', 'Replacer les panneaux autour de la barre', [], true, {
+      activer: async () => { await this.regler({ panneauxDisposition: {} }); await this.panneaux.afficher(this.reglages); this.toast('Panneaux replacés'); },
+      ajuster: () => {}, maj: () => {}, titreAction: () => 'Replacer',
+    });
 
     this.liste.append(this.section('Contenu'));
     this.ajouterReglage('view-list-symbolic', 'Mes liens, snippets…', [icone('go-next-symbolic', 14, 'icone type')], true, {

@@ -27,6 +27,30 @@ AFFICHES = 30
 MOTS_CLES = ("pp", "presse-papiers", "presse papiers", "pressepapiers", "clipboard", "copies")
 
 
+import re
+
+# Préfixes connus de clés et de jetons (Google, Anthropic, OpenAI, Groq, xAI, GitHub, Slack, AWS…)
+_PREFIXES_SECRETS = re.compile(r"^(AIza|AQ\.|sk-|sk_|gsk_|xai-|ghp_|gho_|ghs_|github_pat_|xox[abp]-|AKIA|ya29\.|eyJ)")
+
+
+def ressemble_a_un_secret(texte: str) -> bool:
+    """Un seul « mot » long, sans espace, qui a la forme d'une clé d'API ou d'un jeton.
+
+    Un gestionnaire de mots de passe marque ses copies (elles ne viennent jamais ici) ; une clé copiée depuis
+    une page web ou un courriel, elle, n'est pas marquée : on la reconnaît à sa forme.
+    """
+    mot = texte.strip()
+    if not mot or any(c.isspace() for c in mot) or len(mot) < 20:
+        return False
+    if _PREFIXES_SECRETS.match(mot):
+        return True
+    if mot.startswith(("http://", "https://", "/", "C:", "\\")) or "@" in mot:  # adresse, chemin, courriel
+        return False
+    # longue suite de lettres, chiffres et signes de clé, avec à la fois des chiffres, des minuscules et des majuscules
+    return (len(mot) >= 32 and re.fullmatch(r"[A-Za-z0-9_\-.+/=]+", mot) is not None
+            and any(c.isdigit() for c in mot) and any(c.islower() for c in mot) and any(c.isupper() for c in mot))
+
+
 def _il_y_a(date: dt.datetime, maintenant: dt.datetime) -> str:
     secondes = max(0, int((maintenant - date).total_seconds()))
     if secondes < 60:
@@ -55,7 +79,8 @@ class PressePapiers(Module):
     def _lire(self) -> None:
         try:
             donnees = json.loads(self.fichier.read_text(encoding="utf-8"))
-            self.elements = [e for e in donnees.get("elements", []) if isinstance(e.get("texte"), str)][:MAX_ELEMENTS]
+            self.elements = [e for e in donnees.get("elements", []) if isinstance(e.get("texte"), str)
+                             and not ressemble_a_un_secret(e["texte"])][:MAX_ELEMENTS]  # anciennes copies de clés retirées
         except (OSError, ValueError, AttributeError):
             self.elements = []
 
@@ -72,6 +97,8 @@ class PressePapiers(Module):
     def ajouter(self, contenu: str) -> bool:
         """Garde un texte copié (en tête ; s'il y était déjà, il remonte). Renvoie False s'il est ignoré."""
         if not isinstance(contenu, str) or not contenu.strip() or len(contenu) > MAX_CARACTERES:
+            return False
+        if ressemble_a_un_secret(contenu):  # clé d'API, jeton, mot de passe copié à la main : jamais gardé
             return False
         with self._verrou:
             if self.elements and self.elements[0]["texte"] == contenu:

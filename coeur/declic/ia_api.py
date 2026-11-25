@@ -52,17 +52,22 @@ FOURNISSEURS = {f.cle: f for f in (
 
 
 class ErreurIA(Exception):
-    def __init__(self, message: str, modele_conseille: str = ""):
+    def __init__(self, message: str, modele_conseille: str = "", detail: str = "", code: int = 0):
         super().__init__(message)
         self.modele_conseille = modele_conseille  # quand le fournisseur dit d'utiliser un autre modèle
+        self.detail = detail  # message complet du fournisseur (quota dépassé : la limite y figure)
+        self.code = code
 
 
-def _requete(methode: str, adresse: str, entetes: dict, corps: dict | None = None) -> dict:
+def _requete(methode: str, adresse: str, entetes: dict, corps: dict | None = None,
+             entetes_recus: dict | None = None) -> dict:
     donnees = json.dumps(corps).encode("utf-8") if corps is not None else None
     requete = urllib.request.Request(adresse, data=donnees, method=methode,
                                      headers={"content-type": "application/json", "user-agent": "Declic", **entetes})
     try:
         with urllib.request.urlopen(requete, timeout=DELAI_S) as reponse:
+            if entetes_recus is not None:  # quotas indiqués par le fournisseur (ia_quota.py)
+                entetes_recus.update(reponse.headers.items())
             return json.loads(reponse.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode("utf-8", "replace")
@@ -75,7 +80,8 @@ def _requete(methode: str, adresse: str, entetes: dict, corps: dict | None = Non
         if exc.code == 503:
             raise ErreurIA("le fournisseur est surchargé en ce moment (503) : réessayez dans un instant") from None
         if exc.code == 429:
-            raise ErreurIA("trop de demandes ou crédit épuisé chez le fournisseur (429)") from None
+            raise ErreurIA("quota atteint chez le fournisseur (429) : attendez la remise à zéro ou changez d'IA",
+                           detail=message or detail, code=429) from None
         raise ErreurIA(f"erreur {exc.code} : {message or detail[:200]}") from None
     except urllib.error.URLError as exc:
         raise ErreurIA(f"impossible de joindre le service ({exc.reason})") from None
@@ -132,7 +138,8 @@ def choisir_modele(fournisseur: Fournisseur, disponibles: list[str]) -> str:
     return disponibles[0] if disponibles else ""
 
 
-def demander(fournisseur: Fournisseur, cle: str, modele: str, systeme: str, question: str, adresse: str = "") -> str:
+def demander(fournisseur: Fournisseur, cle: str, modele: str, systeme: str, question: str, adresse: str = "",
+             entetes_recus: dict | None = None) -> str:
     """Une question, une réponse (texte)."""
     racine = (adresse or fournisseur.adresse).rstrip("/")
     if fournisseur.format == "anthropic":
@@ -140,14 +147,14 @@ def demander(fournisseur: Fournisseur, cle: str, modele: str, systeme: str, ques
                  "messages": [{"role": "user", "content": question}]}
         if modele.startswith(("claude-opus", "claude-sonnet", "claude-haiku", "claude-fable")):
             corps["output_config"] = {"effort": "low"}  # tâches courtes : réponse rapide
-        reponse = _requete("POST", f"{racine}/messages", _entetes(fournisseur, cle), corps)
+        reponse = _requete("POST", f"{racine}/messages", _entetes(fournisseur, cle), corps, entetes_recus)
         if reponse.get("stop_reason") == "refusal":
             raise ErreurIA("l'IA a refusé de répondre à cette demande")
         morceaux = [b.get("text", "") for b in reponse.get("content", []) if b.get("type") == "text"]
     else:
         corps = {"model": modele, "messages": [{"role": "system", "content": systeme},
                                                {"role": "user", "content": question}]}
-        reponse = _requete("POST", f"{racine}/chat/completions", _entetes(fournisseur, cle), corps)
+        reponse = _requete("POST", f"{racine}/chat/completions", _entetes(fournisseur, cle), corps, entetes_recus)
         morceaux = [(c.get("message") or {}).get("content") or "" for c in reponse.get("choices", [])[:1]]
     texte = "".join(morceaux).strip()
     if not texte:

@@ -17,7 +17,7 @@ from __future__ import annotations
 import json
 import logging
 
-from declic import ia_api, texte
+from declic import ia_api, ia_quota, texte
 from declic.modele import Champ, Commande, Creation, CreationRefusee, Element, Reponse, Resultat
 from declic.modules import Module
 
@@ -59,6 +59,14 @@ class Assistant(Module):
     def fichier(self):
         return self.contexte.chemins.config / "ia.json"
 
+    @property
+    def quotas(self) -> ia_quota.Quotas:
+        return ia_quota.Quotas(self.contexte.chemins.donnees / "ia-quota.json")
+
+    def etat_quota(self, cle: str) -> dict:
+        reglage = self._reglages().get("fournisseurs", {}).get(cle, {})
+        return self.quotas.etat(cle, reglage.get("limite_jour"))
+
     def _reglages(self) -> dict:
         try:
             donnees = json.loads(self.fichier.read_text(encoding="utf-8"))
@@ -90,18 +98,23 @@ class Assistant(Module):
         cle = self.contexte.plateforme.secret_lire(fournisseur.cle) if fournisseur.avec_cle else ""
         if fournisseur.avec_cle and not cle:
             raise ia_api.ErreurIA(f"clé de {fournisseur.nom} introuvable : enregistrez-la à nouveau")
+        recus: dict = {}
         try:
             reponse = ia_api.demander(fournisseur, cle or "", reglage.get("modele", ""), SYSTEME, consigne,
-                                      reglage.get("adresse", ""))
+                                      reglage.get("adresse", ""), entetes_recus=recus)
         except ia_api.ErreurIA as exc:
+            limite = ia_quota.limite_dans_erreur(exc.detail) if exc.code == 429 else None
+            if limite:
+                self.quotas.apprendre_limite(fournisseur.cle, limite)
             if not exc.modele_conseille:
                 raise
             # Modèle retiré : on passe à celui que le fournisseur conseille, et on le garde
             reponse = ia_api.demander(fournisseur, cle or "", exc.modele_conseille, SYSTEME, consigne,
-                                      reglage.get("adresse", ""))
+                                      reglage.get("adresse", ""), entetes_recus=recus)
             reglages = self._reglages()
             reglages["fournisseurs"][fournisseur.cle]["modele"] = exc.modele_conseille
             self._ecrire(reglages)
+        self.quotas.noter(fournisseur.cle, recus)
         return fournisseur.nom.split(" (")[0], reponse
 
     # --- Commandes ------------------------------------------------------------------------
@@ -114,8 +127,28 @@ class Assistant(Module):
                 nom, reponse = self.demander(consigne_de(argument[:MAX_SELECTION]))
             except ia_api.ErreurIA as exc:
                 return Reponse.erreur(f"IA : {exc}")
-            return Reponse(message=f"Réponse de {nom}", texte=reponse, fermer=False)
+            cle = self._actif()[0].cle
+            return Reponse(message=f"Réponse de {nom} · {ia_quota.resume(self.etat_quota(cle))}", texte=reponse,
+                           fermer=False)
         return action
+
+    def rapport_quotas(self) -> str:
+        """Une ligne par IA configurée : modèle, requêtes utilisées / limite, remise à zéro."""
+        reglages = self._reglages()
+        actif = self._actif()
+        lignes = []
+        for cle, reglage in reglages.get("fournisseurs", {}).items():
+            if cle not in ia_api.FOURNISSEURS:
+                continue
+            etat = self.etat_quota(cle)
+            nom = ia_api.FOURNISSEURS[cle].nom.split(" (")[0]
+            source = "d'après le fournisseur" if etat["source"] == "fournisseur" else "compté par Déclic"
+            marque = " (utilisée)" if actif and actif[0].cle == cle else ""
+            lignes.append(f"{nom}{marque} — {reglage.get('modele', '?')}\n  {ia_quota.resume(etat)} ({source})")
+        return "\n".join(lignes) or "Aucune IA configurée : bouton + → « Clé d'IA »."
+
+    def _quota(self, _contexte, _argument):
+        return Reponse(message="Requêtes d'IA", texte=self.rapport_quotas(), fermer=False)
 
     def _utiliser(self, cle: str):
         def action(_contexte, _argument):
@@ -127,6 +160,9 @@ class Assistant(Module):
 
     def commandes(self) -> list[Commande]:
         commandes = [Commande(
+            "assistant.quota", "IA : requêtes restantes", self._quota, icone=ICONE, requiert="secret_lire",
+            description="Où en sont vos requêtes, et quand le compteur repart à zéro",
+            mots_cles=("ia", "quota", "limite", "requêtes", "crédit")), Commande(
             "assistant.demander", "Demander à l'IA (réponse dans la barre)",
             self._repondre(lambda question: question), argument="question", icone=ICONE,
             mots_cles=("ia", "question", "assistant", "chat"), requiert="secret_lire")]
@@ -202,6 +238,9 @@ class Assistant(Module):
                       aide="Gardée dans le trousseau du système (Gestionnaire d'identifiants sous Windows)."),
                 Champ("modele", "Modèle", obligatoire=False, exemple="laisser vide : choisi pour vous",
                       aide="Le nom exact chez le fournisseur ; vide = un bon modèle choisi automatiquement."),
+                Champ("limite", "Requêtes par jour", obligatoire=False, exemple="facultatif, ex. 1000",
+                      aide="Votre limite chez ce fournisseur, pour afficher « 12 / 1000 ». Inutile pour Claude et "
+                           "ChatGPT, qui l'indiquent eux-mêmes."),
                 Champ("adresse", "Adresse d'Ollama", obligatoire=False, exemple="http://127.0.0.1:11434/v1",
                       si=("fournisseur", ("ollama",))),
             ),
@@ -231,7 +270,11 @@ class Assistant(Module):
         if fournisseur.avec_cle:
             self.contexte.plateforme.secret_enregistrer(cle_f, cle)
         reglages = self._reglages()
-        reglages.setdefault("fournisseurs", {})[cle_f] = {"modele": modele, **({"adresse": adresse} if adresse else {})}
+        limite = valeurs.get("limite", "").strip().replace(" ", "")
+        if limite and not limite.isdigit():
+            raise CreationRefusee("Un nombre de requêtes, par exemple 1000.", "limite")
+        reglages.setdefault("fournisseurs", {})[cle_f] = {"modele": modele, **({"adresse": adresse} if adresse else {}),
+                                                         **({"limite_jour": int(limite)} if limite else {})}
         reglages["actif"] = cle_f
         self._ecrire(reglages)
         return Reponse(message=f"{fournisseur.nom.split(' (')[0]} prêt (modèle {modele})", fermer=False)
@@ -240,7 +283,7 @@ class Assistant(Module):
         reglages = self._reglages()
         actif = self._actif()
         return [Element(cle=cle, titre=ia_api.FOURNISSEURS[cle].nom + (" — utilisée" if actif and actif[0].cle == cle else ""),
-                        sous_titre=f"Modèle : {r.get('modele', '?')}")
+                        sous_titre=f"{r.get('modele', '?')} · {ia_quota.resume(self.etat_quota(cle))}")
                 for cle, r in reglages.get("fournisseurs", {}).items() if cle in ia_api.FOURNISSEURS]
 
     def _supprimer(self, cle: str) -> Reponse:

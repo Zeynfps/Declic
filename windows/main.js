@@ -43,6 +43,8 @@ const REGLAGES_PAR_DEFAUT = {
   panneauApplications: true,
   panneauNotes: true,
   panneauDepot: true,
+  panneauIA: true,
+  panneauxDisposition: {}, // panneaux déplacés : {id: {x, y, l, h}}
   ...APPARENCE_PAR_DEFAUT,
   python: '',
 };
@@ -455,6 +457,7 @@ gerer('api:supprimer', (type, cle) => requete('POST', '/v1/supprimer', { type: S
 gerer('barre:reglages', () => lireReglages());
 gerer('barre:regler', (modifs) => {
   const permis = ['nombreResultats', 'panneauPressePapiers', 'panneauApplications', 'panneauNotes', 'panneauDepot',
+    'panneauIA', 'panneauxDisposition',
     ...Object.keys(APPARENCE_PAR_DEFAUT)];
   const propres = Object.fromEntries(Object.entries(modifs ?? {}).filter(([k]) => permis.includes(k)));
   const reglages = ecrireReglages(propres);
