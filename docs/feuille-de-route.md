@@ -18,6 +18,8 @@ déclenchées par le PC (heure, Wi-Fi, verrouillage, alimentation, ouverture de 
    Reste : « Tester maintenant » et un journal plus lisible dans la barre.
 2. **Historique du presse-papiers** : chercher dans ce qu'on a copié et le recoller, épingler des éléments,
    garder les images, ne jamais enregistrer ce qui vient d'un gestionnaire de mots de passe.
+   **Fait** pour le texte (`pp`, collage direct sous Windows). Reste : épingler, les images, le collage direct
+   sous GNOME, et un essai réel sous GNOME.
 3. **Actions sur le texte sélectionné** : traduire, reformuler, résumer, corriger, chercher, changer la casse.
    Réponse de l'IA affichée **dans la barre** (clé d'API ou modèle local comme Ollama), plus seulement dans le
    navigateur.

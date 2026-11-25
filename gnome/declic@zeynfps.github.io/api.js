@@ -98,6 +98,11 @@ export class ApiDeclic {
             .then(r => r.resultats);
     }
 
+    // Texte copié, gardé dans l'historique du presse-papiers (sans relancer le service s'il est arrêté)
+    ajouterPressePapiers(texte) {
+        return this._requete('POST', '/v1/presse-papiers', {texte});
+    }
+
     // Adresse de l'onglet affiché par le navigateur de ce processus (null si illisible)
     pageActive(pid) {
         return this._requete('GET', `/v1/page-active?pid=${pid}`).then(r => r.url);

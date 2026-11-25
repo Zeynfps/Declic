@@ -20,6 +20,7 @@ IA, changer un réglage du système ou lancer une de vos automatisations, sans q
 | **Liens de recherche** | Un mot-clé puis la recherche : `wiki Gergovie`, `scholar céramique`, `persee …`, `hal …`, `gallica …` ; ajoutez les vôtres avec le bouton **+** |
 | **Questions aux IA** | `gpt …`, `claude …`, `gemini …` ouvrent le navigateur et envoient la question ; toute recherche propose aussi « Demander à … » |
 | **Favoris** | **Ctrl+Maj+F** sur un résultat l'épingle en haut de la barre vide (une appli, un réglage, une recherche, une question) |
+| **Presse-papiers** | `pp` liste ce que vous avez copié (`pp mot` pour filtrer) ; Entrée le recolle là où vous étiez. Ce que les gestionnaires de mots de passe marquent comme secret n'est jamais gardé |
 | **Snippets** | Textes réutilisables avec variables (`{date}`, `{heure}`, `{jour}`, `{annee}`) |
 | **Système** | Verrouiller, mise en veille, thème sombre, éclairage nocturne, Ne pas déranger, Wi-Fi, Bluetooth, mode avion, profil d'énergie, corbeille… |
 | **Son et musique** | Volume, muet, micro, lecture/pause, piste suivante (toute application compatible MPRIS, ou sous Windows qui répond aux touches multimédia) |

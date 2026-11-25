@@ -41,7 +41,7 @@ class Module:
 
 def tous_les_modules(contexte: "Contexte") -> list[Module]:
     from declic.modules import (applications, automatisations, calcul, favoris, fichiers, ia, identifiants, interne, liens,
-                                scripts, snippets, son, systeme)
+                                presse_papiers, scripts, snippets, son, systeme)
 
     return [
         interne.Interne(contexte),
@@ -56,5 +56,6 @@ def tous_les_modules(contexte: "Contexte") -> list[Module]:
         identifiants.Identifiants(contexte),
         automatisations.Automatisations(contexte),
         fichiers.Fichiers(contexte),
+        presse_papiers.PressePapiers(contexte),
         favoris.Favoris(contexte),
     ]

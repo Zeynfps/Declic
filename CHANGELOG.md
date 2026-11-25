@@ -2,6 +2,10 @@
 
 ## À venir
 
+- **Historique du presse-papiers** : `pp` dans la barre liste les 200 derniers textes copiés (`pp mot` filtre) ;
+  Entrée recolle directement dans l'application d'où l'on vient (Windows ; sous GNOME, le texte est copié et
+  Ctrl+V suffit). Les textes marqués comme secrets par les gestionnaires de mots de passe ne sont pas gardés.
+  « Effacer l'historique du presse-papiers » le vide.
 - **Mode jeu** (bouton + → Mode jeu) : au lancement d'un jeu, Ne pas déranger, mode performance, volume,
   applications à fermer ; tout revient comme avant à la fermeture du jeu. Jeux reconnus d'après leur dossier
   (Steam et Proton, Epic, Riot, GOG, Xbox, EA, Ubisoft, Lutris, Heroic), lanceurs et anti-triche exclus.

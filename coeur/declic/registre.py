@@ -28,6 +28,8 @@ NIVEAU = 1000.0  # écart entre deux niveaux de la hiérarchie (applications > f
 SEUIL_APPLI = 50.0  # une appli trouvée seulement par quelques lettres éparses descend parmi les fonctions
 SCORE_DIRECT = 95.0  # résultats de mots-clés explicites (« persee … », « gpt … », calcul) : toujours en tête
 SECTIONS = {1: "Fonctionnalités", 2: "Fichiers", 3: "Applications"}
+# Modules qui gardent leur propre section, en tête quand on les appelle par leur mot-clé (« pp »)
+SECTIONS_PROPRES = {"pp": "Presse-papiers"}
 
 
 class Registre:
@@ -84,6 +86,12 @@ class Registre:
         if auto is None:
             return
         auto.demarrer()
+        for module in self.modules:  # modules qui écoutent quelque chose dans le service (presse-papiers…)
+            if hasattr(module, "demarrer") and module is not auto:
+                try:
+                    module.demarrer()
+                except Exception:
+                    journal.exception("Module %s : démarrage impossible", module.nom)
         plateforme = self.contexte.plateforme
         if plateforme.prend_en_charge("surveiller"):
             try:
@@ -232,6 +240,7 @@ class Registre:
             pertinence += rang  # à égalité parfaite : application, puis fichier, puis fonction
         else:
             r.section = SECTIONS[niveau]
+        r.section = SECTIONS_PROPRES.get(r.module, r.section)
         r.score = niveau * NIVEAU + pertinence
 
     @property

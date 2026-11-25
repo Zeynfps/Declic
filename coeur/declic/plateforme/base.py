@@ -125,6 +125,16 @@ class Plateforme:
         """Programmes en cours de l'utilisateur : nom (sans extension, ex. « Discord ») → chemin de l'exécutable."""
         self._absent("lister les programmes ouverts")
 
+    # --- Presse-papiers (historique) -----------------------------------------------------
+    def surveiller_presse_papiers(self, rappel) -> None:
+        """Appelle rappel(texte) à chaque texte copié, sauf ce que les gestionnaires de mots de passe marquent comme
+        secret. Sous GNOME, c'est l'extension qui envoie les textes copiés au service."""
+        self._absent("écouter le presse-papiers")
+
+    def coller_texte(self, texte: str) -> None:
+        """Met le texte dans le presse-papiers puis le colle dans l'application revenue au premier plan."""
+        self._absent("coller")
+
     def fermer_application(self, nom: str) -> int:
         """Demande à un programme de se fermer (comme la croix de sa fenêtre). Renvoie le nombre de processus
         concernés (0 s'il n'était pas ouvert)."""

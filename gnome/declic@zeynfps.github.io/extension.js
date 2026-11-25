@@ -7,6 +7,7 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import {ApiDeclic} from './api.js';
 import {Barre} from './barre.js';
+import {SuiviPressePapiers} from './presse-papiers.js';
 import {Saisie} from './saisie.js';
 
 export default class DeclicExtension extends Extension {
@@ -15,6 +16,7 @@ export default class DeclicExtension extends Extension {
         this._api = new ApiDeclic(this._settings);
         this._barre = new Barre(this._api, this._settings, this.dir);
         this._saisie = new Saisie(this._api);
+        this._pressePapiers = new SuiviPressePapiers(this._api);
         Main.wm.addKeybinding(
             'ouvrir-barre', this._settings, Meta.KeyBindingFlags.IGNORE_AUTOREPEAT,
             Shell.ActionMode.NORMAL | Shell.ActionMode.OVERVIEW,
@@ -23,6 +25,8 @@ export default class DeclicExtension extends Extension {
 
     disable() {
         Main.wm.removeKeybinding('ouvrir-barre');
+        this._pressePapiers?.detruire();
+        this._pressePapiers = null;
         this._saisie?.detruire();
         this._saisie = null;
         this._barre?.detruire();

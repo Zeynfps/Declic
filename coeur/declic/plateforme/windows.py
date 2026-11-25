@@ -831,6 +831,97 @@ class PlateformeWindows(Plateforme):
         finally:
             u32.CloseClipboard()
 
+    # --- Historique du presse-papiers ----------------------------------------------
+    @staticmethod
+    def _lire_presse_papiers() -> str | None:
+        """Texte du presse-papiers, ou None s'il n'y en a pas ou s'il ne faut pas le garder : les gestionnaires
+        de mots de passe (KeePass, Bitwarden, 1Password…) le signalent par des formats convenus."""
+        CF_UNICODETEXT = 13
+        u32, k32 = ctypes.windll.user32, ctypes.windll.kernel32
+        u32.GetClipboardData.restype = ctypes.c_void_p
+        u32.RegisterClipboardFormatW.restype = wt.UINT
+        k32.GlobalLock.restype = ctypes.c_void_p
+        k32.GlobalLock.argtypes = [ctypes.c_void_p]
+        k32.GlobalUnlock.argtypes = [ctypes.c_void_p]
+        exclure = [u32.RegisterClipboardFormatW(n) for n in ("ExcludeClipboardContentFromMonitorProcessing",
+                                                               "Clipboard Viewer Ignore")]
+        historique = u32.RegisterClipboardFormatW("CanIncludeInClipboardHistory")
+        if not u32.IsClipboardFormatAvailable(CF_UNICODETEXT):
+            return None
+        for _ in range(10):
+            if u32.OpenClipboard(None):
+                break
+            time.sleep(0.05)
+        else:
+            return None
+        try:
+            if any(u32.IsClipboardFormatAvailable(f) for f in exclure):
+                return None
+            if u32.IsClipboardFormatAvailable(historique):
+                valeur = u32.GetClipboardData(historique)
+                pointeur = k32.GlobalLock(valeur) if valeur else None
+                if pointeur:
+                    refuse = ctypes.c_uint32.from_address(pointeur).value == 0
+                    k32.GlobalUnlock(valeur)
+                    if refuse:
+                        return None
+            donnees = u32.GetClipboardData(CF_UNICODETEXT)
+            pointeur = k32.GlobalLock(donnees) if donnees else None
+            if not pointeur:
+                return None
+            try:
+                return ctypes.wstring_at(pointeur)
+            finally:
+                k32.GlobalUnlock(donnees)
+        finally:
+            u32.CloseClipboard()
+
+    def surveiller_presse_papiers(self, rappel) -> None:
+        """Relève le presse-papiers à chaque changement (numéro de séquence de Windows, vérifié 2 fois par seconde)."""
+        sequence = ctypes.windll.user32.GetClipboardSequenceNumber
+
+        def boucle():
+            dernier = sequence()
+            while True:
+                time.sleep(0.5)
+                actuel = sequence()
+                if actuel == dernier:
+                    continue
+                dernier = actuel
+                try:
+                    contenu = self._lire_presse_papiers()
+                    if contenu:
+                        rappel(contenu)
+                except Exception:
+                    log.exception("Lecture du presse-papiers impossible")
+
+        threading.Thread(target=boucle, daemon=True, name="presse-papiers").start()
+
+    def coller_texte(self, texte: str) -> None:
+        """Copie, puis Ctrl+V dans l'application qui reprend la main quand la barre se ferme."""
+        self.copier_texte(texte)
+
+        def coller():
+            limite = time.monotonic() + 2
+            while time.monotonic() < limite:  # attendre que la barre de Déclic ait rendu la main
+                fenetre, pid = _premier_plan()
+                if fenetre and not re.match(r"declic|electron", _nom_processus(pid), re.IGNORECASE):
+                    break
+                time.sleep(0.05)
+            else:
+                return
+            time.sleep(0.12)
+            VK_CONTROL, VK_V, HAUT = 0x11, 0x56, 0x0002
+            entrees = [_KEYBDINPUT(VK_CONTROL, 0, 0, 0, 0), _KEYBDINPUT(VK_V, 0, 0, 0, 0),
+                       _KEYBDINPUT(VK_V, 0, HAUT, 0, 0), _KEYBDINPUT(VK_CONTROL, 0, HAUT, 0, 0)]
+            tableau = (_INPUT * len(entrees))()
+            for i, ki in enumerate(entrees):
+                tableau[i].type = 1
+                tableau[i].ki = ki
+            _user32().SendInput(len(entrees), tableau, ctypes.sizeof(_INPUT))
+
+        threading.Thread(target=coller, daemon=True, name="coller").start()
+
     def notifier(self, titre: str, message: str = "") -> None:
         # Texte passé par l'environnement : jamais interprété comme du code PowerShell
         _powershell(_SCRIPT_NOTIFICATION, env={"DECLIC_TITRE": f"Déclic — {titre}", "DECLIC_MESSAGE": message or " "})
