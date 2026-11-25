@@ -356,6 +356,13 @@ class Barre {
       return;
     }
     if (resultat.favori) accessoire.append(icone('starred-symbolic', 13, 'icone etoile'));
+    // Bascule (Bluetooth, Wi-Fi, Ne pas déranger…) : son état actuel, avec un petit interrupteur
+    if (typeof resultat.etat === 'boolean') {
+      const interrupteur = el('span', `interrupteur mini${resultat.etat ? ' actif' : ''}`);
+      interrupteur.setAttribute('aria-hidden', 'true');
+      accessoire.append(el('span', `type etat${resultat.etat ? ' actif' : ''}`, resultat.etat ? 'Activé' : 'Désactivé'), interrupteur);
+      return;
+    }
     accessoire.append(el('span', 'type', TYPES[resultat.module] ?? 'Commande'));
   }
 

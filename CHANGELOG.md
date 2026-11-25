@@ -1,5 +1,10 @@
 # Journal des versions
 
+## À venir
+
+- Les bascules (Bluetooth, Wi-Fi, Ne pas déranger, mode avion, thème sombre…) affichent leur état dans la
+  barre : « Activé » ou « Désactivé », avec un petit interrupteur.
+
 ## 0.3.0 — Mode jeu et presse-papiers (25 novembre 2026)
 
 - **Historique du presse-papiers** : `pp` dans la barre liste les 200 derniers textes copiés (`pp mot` filtre) ;

@@ -226,6 +226,11 @@ body:not(.visible) .barre { opacity: 0; transform: scale(0.98); }
 }
 .interrupteur.actif { background: #3584e4; }
 .interrupteur.actif::after { left: 21px; }
+/* Petit interrupteur à droite d'une bascule dans les résultats (état actuel) */
+.interrupteur.mini { width: 26px; height: 15px; border-radius: 8px; margin-left: 8px; }
+.interrupteur.mini::after { top: 2px; left: 2px; width: 11px; height: 11px; }
+.interrupteur.mini.actif::after { left: 13px; }
+.type.etat.actif { color: rgba(255, 255, 255, 0.78); }
 
 input[type="range"] { width: 240px; accent-color: #3584e4; flex: none; }
 

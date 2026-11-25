@@ -15,6 +15,7 @@ def _simple(methode: str, message: str):
 def _bascule(methode: str, actif: str, inactif: str):
     def action(contexte, _argument):
         etat = getattr(contexte.plateforme, methode)()
+        contexte.etats.noter(methode.removeprefix("basculer_"), etat)
         return Reponse(message=actif if etat else inactif)
     return action
 
@@ -25,6 +26,7 @@ def _regler(bascule: str, voulu: bool, libelle: str):
         plateforme = contexte.plateforme
         if plateforme.etat_bascule(bascule) != voulu:
             getattr(plateforme, f"basculer_{bascule}")()
+        contexte.etats.noter(bascule, voulu)
         return Reponse(message=f"{libelle} : {'activé' if voulu else 'désactivé'}")
     return action
 
@@ -100,27 +102,27 @@ class Systeme(Module):
               icone="user-trash-symbolic", mots_cles=("trash", "poubelle"), requiert="ouvrir_corbeille"),
             C("systeme.fichiers-caches", "Afficher ou masquer les fichiers cachés",
               _bascule("basculer_fichiers_caches", "Fichiers cachés affichés", "Fichiers cachés masqués"),
-              icone="view-reveal-symbolic", mots_cles=("hidden", "points"), requiert="basculer_fichiers_caches"),
+              icone="view-reveal-symbolic", mots_cles=("hidden", "points"), requiert="basculer_fichiers_caches", bascule="fichiers_caches"),
             # Affichage et notifications
             C("systeme.theme-sombre", "Basculer le thème sombre",
               _bascule("basculer_theme_sombre", "Thème sombre", "Thème clair"),
               icone="weather-clear-night-symbolic", mots_cles=("dark mode", "clair", "apparence"),
-              requiert="basculer_theme_sombre"),
+              requiert="basculer_theme_sombre", bascule="theme_sombre"),
             C("systeme.eclairage-nocturne", "Basculer l'éclairage nocturne",
               _bascule("basculer_eclairage_nocturne", "Éclairage nocturne activé", "Éclairage nocturne désactivé"),
               icone="night-light-symbolic", mots_cles=("night light", "lumière bleue"),
-              requiert="basculer_eclairage_nocturne"),
+              requiert="basculer_eclairage_nocturne", bascule="eclairage_nocturne"),
             C("systeme.ne-pas-deranger", "Basculer « Ne pas déranger »",
               _bascule("basculer_ne_pas_deranger", "Ne pas déranger : activé", "Ne pas déranger : désactivé"),
               icone="notifications-disabled-symbolic", mots_cles=("dnd", "notifications", "silence"),
-              requiert="basculer_ne_pas_deranger"),
+              requiert="basculer_ne_pas_deranger", bascule="ne_pas_deranger"),
             # Réseau
             C("systeme.wifi", "Basculer le Wi-Fi", _bascule("basculer_wifi", "Wi-Fi activé", "Wi-Fi désactivé"),
-              icone="network-wireless-symbolic", mots_cles=("wifi", "internet", "réseau"), requiert="basculer_wifi"),
+              icone="network-wireless-symbolic", mots_cles=("wifi", "internet", "réseau"), requiert="basculer_wifi", bascule="wifi"),
             C("systeme.bluetooth", "Basculer le Bluetooth",
               _bascule("basculer_bluetooth", "Bluetooth activé", "Bluetooth désactivé"),
-              icone="bluetooth-active-symbolic", mots_cles=("bluetooth",), requiert="basculer_bluetooth"),
+              icone="bluetooth-active-symbolic", mots_cles=("bluetooth",), requiert="basculer_bluetooth", bascule="bluetooth"),
             C("systeme.mode-avion", "Basculer le mode avion",
               _bascule("basculer_mode_avion", "Mode avion activé", "Mode avion désactivé"),
-              icone="airplane-mode-symbolic", mots_cles=("airplane", "avion"), requiert="basculer_mode_avion"),
+              icone="airplane-mode-symbolic", mots_cles=("airplane", "avion"), requiert="basculer_mode_avion", bascule="mode_avion"),
         ]

@@ -360,3 +360,7 @@
   color: rgba(255, 255, 255, 0.6);
   margin-right: 6px;
 }
+
+/* État d'une bascule dans les résultats : petit interrupteur (indicateur seulement) */
+.declic-etat-actif { color: rgba(255, 255, 255, 0.78); }
+.declic-interrupteur-mini { margin-left: 8px; width: 26px; height: 15px; }

@@ -98,6 +98,7 @@ class Registre:
                 plateforme.surveiller(lambda evenement, valeur=None: self.declencher(evenement, valeur))
             except Exception:
                 journal.exception("Écoute des événements du système impossible")
+        self.contexte.etats.prechauffer({c.bascule for c in self.commandes().values() if c.bascule})
         self.declencher("declic.demarrage", source="démarrage")
 
     # --- Création d'éléments ------------------------------------------------------------
@@ -154,6 +155,15 @@ class Registre:
 
     # --- Recherche --------------------------------------------------------------------
     def rechercher(self, requete: str, limite: int = 20, page: Optional[str] = None) -> list[Resultat]:
+        resultats = self._rechercher(requete, limite, page)
+        commandes = self.commandes()
+        for r in resultats:  # Bluetooth, Wi-Fi… : activé ou désactivé, pour l'indicateur de la barre
+            commande = commandes.get(r.commande)
+            if commande is not None and commande.bascule and r.argument is None:
+                r.etat = self.contexte.etats.lire(commande.bascule)
+        return resultats
+
+    def _rechercher(self, requete: str, limite: int = 20, page: Optional[str] = None) -> list[Resultat]:
         requete = requete.strip()
         commandes = self.commandes()
         resultats: list[Resultat] = []

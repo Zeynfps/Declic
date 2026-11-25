@@ -45,6 +45,7 @@ class Commande:
     argument: Optional[str] = None  # nom de l'argument attendu (ex. « requête »), None si aucun
     requiert: Optional[str] = None  # capacité de la plateforme nécessaire (nom de méthode)
     cachee: bool = False  # n'apparaît pas dans la recherche (utilisée par les résultats dynamiques)
+    bascule: Optional[str] = None  # bascule dont la barre affiche l'état (« bluetooth »…), voir etats.py
 
     @property
     def module(self) -> str:
@@ -67,6 +68,7 @@ class Resultat:
     section: str = ""  # en-tête sous lequel la barre range la ligne (« Favoris »…) ; vide = choix de la barre
     favori: bool = False
     presque: bool = False  # le texte tapé est (presque) exactement son nom : passe en tête (registre)
+    etat: Optional[bool] = None  # bascule : activée (True), désactivée (False), inconnu (None)
 
     def en_dict(self) -> dict:
         return {
@@ -81,6 +83,7 @@ class Resultat:
             "module": self.module or self.commande.split(".", 1)[0],
             "section": self.section,
             "favori": self.favori,
+            "etat": self.etat,
         }
 
 

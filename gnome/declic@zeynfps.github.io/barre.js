@@ -629,6 +629,18 @@ export class Barre {
         }
         if (resultat.favori)
             accessoire.add_child(new St.Icon({icon_name: 'starred-symbolic', icon_size: 12, style_class: 'declic-etoile', y_align: Clutter.ActorAlign.CENTER}));
+        // Bascule (Bluetooth, Wi-Fi, Ne pas déranger…) : son état actuel, avec un petit interrupteur
+        if (typeof resultat.etat === 'boolean') {
+            accessoire.add_child(new St.Label({
+                text: resultat.etat ? 'Activé' : 'Désactivé', y_align: Clutter.ActorAlign.CENTER,
+                style_class: resultat.etat ? 'declic-type declic-etat-actif' : 'declic-type'}));
+            const interrupteur = new Switch(resultat.etat);
+            interrupteur.reactive = false; // indicateur seulement : Entrée sur la ligne bascule
+            interrupteur.add_style_class_name('declic-interrupteur-mini');
+            interrupteur.y_align = Clutter.ActorAlign.CENTER;
+            accessoire.add_child(interrupteur);
+            return;
+        }
         accessoire.add_child(new St.Label({text: TYPES[resultat.module] ?? 'Commande', style_class: 'declic-type', y_align: Clutter.ActorAlign.CENTER}));
     }
 
