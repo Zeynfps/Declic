@@ -429,6 +429,28 @@ class PlateformeLinux(Plateforme):
         Secret, schema = self._secret()
         return bool(Secret.password_clear_sync(schema, {"declic-site": site}, None))
 
+    # --- Clés d'API des IA : trousseau GNOME, schéma à part des identifiants de sites ---
+    @staticmethod
+    def _secret_ia():
+        gi.require_version("Secret", "1")
+        from gi.repository import Secret
+
+        return Secret, Secret.Schema.new("app.declic.CleIA", Secret.SchemaFlags.NONE,
+                                         {"declic-ia": Secret.SchemaAttributeType.STRING})
+
+    def secret_enregistrer(self, nom, valeur):
+        Secret, schema = self._secret_ia()
+        Secret.password_store_sync(schema, {"declic-ia": nom}, Secret.COLLECTION_DEFAULT,
+                                   f"Déclic : clé d'API {nom}", valeur, None)
+
+    def secret_lire(self, nom):
+        Secret, schema = self._secret_ia()
+        return Secret.password_lookup_sync(schema, {"declic-ia": nom}, None)
+
+    def secret_supprimer(self, nom):
+        Secret, schema = self._secret_ia()
+        Secret.password_clear_sync(schema, {"declic-ia": nom}, None)
+
     def saisir_identifiant(self, site, delai_s):
         try:
             self._appel(self.bus_session, "org.gnome.Shell", "/app/declic/Shell", "app.declic.Shell",

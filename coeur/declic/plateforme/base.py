@@ -125,6 +125,16 @@ class Plateforme:
         """Programmes en cours de l'utilisateur : nom (sans extension, ex. « Discord ») → chemin de l'exécutable."""
         self._absent("lister les programmes ouverts")
 
+    # --- Secrets (clés d'API des IA), dans le trousseau du système, jamais dans un fichier -----
+    def secret_enregistrer(self, nom: str, valeur: str) -> None:
+        self._absent("enregistrer une clé")
+
+    def secret_lire(self, nom: str) -> str | None:
+        self._absent("lire une clé")
+
+    def secret_supprimer(self, nom: str) -> None:
+        self._absent("supprimer une clé")
+
     # --- Presse-papiers (historique) -----------------------------------------------------
     def surveiller_presse_papiers(self, rappel) -> None:
         """Appelle rappel(texte) à chaque texte copié, sauf ce que les gestionnaires de mots de passe marquent comme

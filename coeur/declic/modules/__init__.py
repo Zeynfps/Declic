@@ -34,13 +34,17 @@ class Module:
         """Ce que l'utilisateur peut ajouter à ce module depuis la barre (bouton +)."""
         return []
 
+    def pour_selection(self, selection: str, requete: str) -> list[Resultat]:
+        """Actions sur le texte sélectionné dans une autre application (raccourci dédié de la barre)."""
+        return []
+
     def suggestions(self, page: str | None, requete: str) -> list[Resultat]:
         """Résultats liés à la page affichée dans le navigateur au moment d'ouvrir la barre."""
         return []
 
 
 def tous_les_modules(contexte: "Contexte") -> list[Module]:
-    from declic.modules import (applications, automatisations, calcul, favoris, fichiers, ia, identifiants, interne, liens,
+    from declic.modules import (applications, assistant, automatisations, calcul, favoris, fichiers, ia, identifiants, interne, liens,
                                 presse_papiers, scripts, snippets, son, systeme)
 
     return [
@@ -49,6 +53,7 @@ def tous_les_modules(contexte: "Contexte") -> list[Module]:
         calcul.Calcul(contexte),
         liens.Liens(contexte),
         ia.IA(contexte),
+        assistant.Assistant(contexte),
         snippets.Snippets(contexte),
         systeme.Systeme(contexte),
         son.Son(contexte),

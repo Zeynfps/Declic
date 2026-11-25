@@ -154,7 +154,10 @@ class Registre:
                     journal.exception("Module %s : rechargement impossible", module.nom)
 
     # --- Recherche --------------------------------------------------------------------
-    def rechercher(self, requete: str, limite: int = 20, page: Optional[str] = None) -> list[Resultat]:
+    def rechercher(self, requete: str, limite: int = 20, page: Optional[str] = None,
+                   selection: Optional[str] = None) -> list[Resultat]:
+        if selection and selection.strip():
+            return self.agir_sur_selection(selection, requete, limite)
         resultats = self._rechercher(requete, limite, page)
         commandes = self.commandes()
         for r in resultats:  # Bluetooth, Wi-Fi… : activé ou désactivé, pour l'indicateur de la barre
@@ -162,6 +165,25 @@ class Registre:
             if commande is not None and commande.bascule and r.argument is None:
                 r.etat = self.contexte.etats.lire(commande.bascule)
         return resultats
+
+    def agir_sur_selection(self, selection: str, requete: str, limite: int = 20) -> list[Resultat]:
+        """Texte sélectionné ailleurs : les actions des modules (IA…), puis la recherche web sur ce texte."""
+        commandes = self.commandes()
+        resultats: list[Resultat] = []
+        for module in self.modules:
+            try:
+                resultats.extend(r for r in module.pour_selection(selection, requete) if r.commande in commandes)
+            except Exception:
+                journal.exception("Module %s : actions sur la sélection impossibles", module.nom)
+        if "liens.g" in commandes and not requete.strip():
+            resultats.append(Resultat(commande="liens.g", titre="Rechercher sur le web", argument=selection.strip()[:300],
+                                      icone="web-browser-symbolic", score=1.0, section="Texte sélectionné",
+                                      module="liens"))
+        for r in resultats:
+            r.module = r.module or r.commande.split(".", 1)[0]
+            r.confirmer = r.confirmer or commandes[r.commande].confirmer
+        resultats.sort(key=lambda r: r.score, reverse=True)
+        return resultats[:limite]
 
     def _rechercher(self, requete: str, limite: int = 20, page: Optional[str] = None) -> list[Resultat]:
         requete = requete.strip()

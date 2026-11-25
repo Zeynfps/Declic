@@ -10,6 +10,7 @@ Utilisée par la barre (extension GNOME, plus tard l'interface Windows) et, plus
     POST /v1/creer {"type": …, "valeurs": {cle: texte}} → réponse + {"champ": champ à corriger ou null}
     POST /v1/declencheur {"evenement": "telephone.arrivee", "valeur": "maison"} → {"regles": [noms lancés]}
     GET  /v1/automatisations                → {"regles", "erreurs", "journal", "evenements"}
+    POST /v1/recherche-selection {"selection", "requete"} → actions sur le texte sélectionné (IA…)
     POST /v1/presse-papiers  {"texte"}       → {"garde": bool} (texte copié, envoyé par la barre GNOME)
     GET  /v1/page-active?pid=N              → {"url": adresse de l'onglet affiché, ou null}
     GET  /v1/verifier-page?site=X&pid=N     → {"ok": bool, "raison": …} (avant de taper un identifiant)
@@ -194,6 +195,20 @@ def creer_serveur(registre: Registre, port: int = PORT_PAR_DEFAUT) -> ThreadingH
                     self._envoyer(400, {"erreur": "« type » et « cle » attendus"})
                     return
                 self._envoyer(200, registre.supprimer(type_, cle))
+            elif url.path == "/v1/recherche-selection":
+                donnees = self._corps_json()
+                if donnees is None:
+                    return
+                selection, requete = donnees.get("selection"), donnees.get("requete", "")
+                if not isinstance(selection, str) or not isinstance(requete, str):
+                    self._envoyer(400, {"erreur": "« selection » et « requete » attendus"})
+                    return
+                try:
+                    limite = max(1, min(100, int(donnees.get("limite", 20))))
+                except (TypeError, ValueError):
+                    limite = 20
+                resultats = registre.rechercher(requete, limite, selection=selection)
+                self._envoyer(200, {"resultats": [r.en_dict() for r in resultats]})
             elif url.path == "/v1/presse-papiers":
                 donnees = self._corps_json()
                 if donnees is None:

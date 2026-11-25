@@ -1230,6 +1230,38 @@ class PlateformeWindows(Plateforme):
     def coffre_supprimer(self, site):
         return bool(_advapi32().CredDeleteW(f"{PREFIXE_COFFRE}{site}", _CRED_TYPE_GENERIC, 0))
 
+    # --- Clés d'API des IA : Gestionnaire d'identifiants (« DeclicIA:… », à part des sites) ---
+    def secret_enregistrer(self, nom, valeur):
+        a = _advapi32()
+        secret = valeur.encode("utf-16-le")
+        blob = (ctypes.c_ubyte * max(1, len(secret))).from_buffer_copy(secret or b"\0")
+        cred = _CREDENTIAL()
+        cred.Type = _CRED_TYPE_GENERIC
+        cred.TargetName = f"DeclicIA:{nom}"
+        cred.Comment = "Déclic : clé d'API"
+        cred.CredentialBlobSize = len(secret)
+        cred.CredentialBlob = ctypes.cast(blob, ctypes.POINTER(ctypes.c_ubyte))
+        cred.Persist = _CRED_PERSIST_LOCAL_MACHINE
+        cred.UserName = nom
+        if not a.CredWriteW(ctypes.byref(cred), 0):
+            raise NonPrisEnCharge(f"Gestionnaire d'identifiants : erreur {ctypes.get_last_error()}")
+
+    def secret_lire(self, nom):
+        a = _advapi32()
+        a.CredReadW.argtypes = [wt.LPCWSTR, wt.DWORD, wt.DWORD, ctypes.POINTER(ctypes.POINTER(_CREDENTIAL))]
+        a.CredReadW.restype = wt.BOOL
+        cred = ctypes.POINTER(_CREDENTIAL)()
+        if not a.CredReadW(f"DeclicIA:{nom}", _CRED_TYPE_GENERIC, 0, ctypes.byref(cred)):
+            return None
+        try:
+            c = cred.contents
+            return bytes(c.CredentialBlob[:c.CredentialBlobSize]).decode("utf-16-le")
+        finally:
+            a.CredFree(cred)
+
+    def secret_supprimer(self, nom):
+        _advapi32().CredDeleteW(f"DeclicIA:{nom}", _CRED_TYPE_GENERIC, 0)
+
     @staticmethod
     def _coffre_lire(site: str) -> tuple[str, str]:
         """(identifiant, mot de passe) : lu seulement juste avant de le taper."""
