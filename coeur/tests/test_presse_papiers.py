@@ -68,6 +68,8 @@ class TestPressePapiers(unittest.TestCase):
         self.assertEqual([r.titre for r in self.registre.rechercher("pp", 5) if r.module == "pp"],
                          ["Rien de copié pour l'instant"])
         self.assertFalse(any(r.module == "pp" for r in self.registre.rechercher("ppx", 5)))
+        # « pp » : seulement l'historique, ni questions aux IA ni recherche web
+        self.assertEqual({r.module for r in self.registre.rechercher("pp", 8)}, {"pp"})
 
 
 if __name__ == "__main__":

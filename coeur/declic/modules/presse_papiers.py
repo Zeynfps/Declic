@@ -89,6 +89,12 @@ class PressePapiers(Module):
             plateforme.surveiller_presse_papiers(self.ajouter)
 
     # --- Dans la barre ------------------------------------------------------------------
+    @staticmethod
+    def exclusif(requete: str) -> bool:
+        """« pp … » : la barre ne montre que l'historique."""
+        mot = requete.strip().partition(" ")[0]
+        return texte.normaliser(mot) in MOTS_CLES or texte.normaliser(requete.strip()) in MOTS_CLES
+
     def resultats(self, requete: str) -> list[Resultat]:
         mot, _, reste = requete.strip().partition(" ")
         if texte.normaliser(mot) not in MOTS_CLES and texte.normaliser(requete.strip()) not in MOTS_CLES:

@@ -213,6 +213,10 @@ class Registre:
             if r.score >= SCORE_SECOURS:
                 self._ranger(r)
         resultats.sort(key=lambda r: r.score, reverse=True)
+        # Un module appelé par son mot-clé (« pp … ») prend toute la liste
+        for module in self.modules:
+            if getattr(module, "exclusif", None) and module.exclusif(requete):
+                return [r for r in resultats if r.module == module.nom][:limite]
         # Les propositions de dernier recours (recherche web, questions aux IA) restent toujours en bas de liste
         secours = [r for r in resultats if r.score < SCORE_SECOURS]
         return [r for r in resultats if r.score >= SCORE_SECOURS][:max(limite - len(secours), 0)] + secours
