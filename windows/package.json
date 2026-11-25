@@ -1,16 +1,55 @@
 {
   "name": "declic-windows",
+  "productName": "Declic",
   "version": "0.2.0",
   "description": "Déclic pour Windows : la barre de commande (Alt+Espace) et le service Déclic.",
+  "author": "rZey'n",
+  "homepage": "https://github.com/Zeynfps/Declic",
   "main": "main.js",
   "private": true,
   "license": "GPL-3.0-or-later",
   "scripts": {
     "start": "electron .",
-    "test": "node --test tests/*.test.js"
+    "test": "node --test tests/*.test.js",
+    "construire": "node outils/preparer-python.js && electron-builder --win nsis --x64 --publish never"
+  },
+  "build": {
+    "appId": "io.github.zeynfps.declic",
+    "productName": "Declic",
+    "copyright": "GNU GPL 3 ou ultérieure",
+    "directories": { "output": "dist" },
+    "files": [
+      "main.js", "preload.js", "preload-fond.js", "preload-osd.js",
+      "capture.js", "fenetres.js", "logos.js", "premier-plan.js",
+      "barre/**", "icones/**", "package.json",
+      "!node_modules/koffi/{doc,src,vendor}/**",
+      "!node_modules/koffi/build/koffi/!(win32_x64)/**"
+    ],
+    "electronLanguages": ["fr", "en-US"],
+    "extraResources": [
+      { "from": "../coeur/declic", "to": "coeur/declic", "filter": ["**/*", "!**/__pycache__/**"] },
+      { "from": "build/python", "to": "python" },
+      { "from": "../LICENSE", "to": "LICENSE.txt" }
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "icones/declic.ico",
+      "artifactName": "Declic-Setup-${version}.exe"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "runAfterFinish": true,
+      "createDesktopShortcut": false,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Déclic",
+      "uninstallDisplayName": "Déclic",
+      "deleteAppDataOnUninstall": false
+    }
   },
   "devDependencies": {
-    "electron": "^45.5.0"
+    "electron": "^45.5.0",
+    "electron-builder": "^26.18.0"
   },
   "dependencies": {
     "koffi": "^2.16.4"

@@ -42,39 +42,48 @@ même endroit. Échap la remet à zéro.
 | Ctrl+, ou le logo en bas à gauche | Réglages (flou et assombrissement de l'arrière-plan, opacité et teinte de la barre) |
 | Échap, Alt+← | Revenir en arrière, puis fermer |
 
-## Installer sous Linux
-
-Prérequis : GNOME Shell 51, Python ≥ 3.11, PyGObject (`python3-gobject` sur Fedora, `python3-gi` sur
-Debian/Ubuntu) et `wl-clipboard`.
-
-```bash
-git clone https://github.com/Zeynfps/Declic.git
-cd Declic
-linux/installer.sh
-```
-
-L'installateur lance les tests, installe un service systemd utilisateur et l'extension GNOME Shell. Sous
-Wayland, **déconnectez-vous puis reconnectez-vous** pour que GNOME charge l'extension, puis appuyez sur Super+R.
-
-Désinstaller : `linux/installer.sh --desinstaller` (vos réglages dans `~/.config/declic` sont conservés).
-
 ## Installer sous Windows
 
-Prérequis : Windows 10 ou 11, [Python](https://www.python.org) ≥ 3.11 et [Node.js](https://nodejs.org) ≥ 20.
-L'installateur propose d'installer Python avec winget s'il manque.
+1. Téléchargez **Declic-Setup-….exe** dans la [dernière version Windows](https://github.com/Zeynfps/Declic/releases).
+2. Double-cliquez dessus. Si Windows affiche « Windows a protégé votre ordinateur », cliquez sur
+   **Informations complémentaires** puis **Exécuter quand même** (l'installateur n'est pas encore signé).
+3. Appuyez sur **Alt+Espace**.
 
-```powershell
-git clone https://github.com/Zeynfps/Declic.git
-cd Declic
-powershell -ExecutionPolicy Bypass -File windows\installer.ps1
+Rien d'autre à installer : Python est compris. Pas besoin d'être administrateur. L'icône de Déclic, dans la zone
+de notification, propose « Démarrer avec Windows », les réglages et « Quitter ». Désinstaller : Paramètres →
+Applications → Déclic (vos réglages dans `%APPDATA%\Declic` sont conservés).
+
+## Installer sous Linux
+
+Ouvrez un terminal et collez :
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Zeynfps/Declic/main/linux/installer-en-ligne.sh | bash
 ```
 
-L'installateur lance les tests, installe la barre (Electron), crée le raccourci « Déclic » du menu Démarrer et
-démarre Déclic. Appuyez ensuite sur **Alt+Espace**. L'icône de Déclic, dans la zone de notification, propose
-« Démarrer avec Windows », les réglages et « Quitter ».
+Puis **déconnectez-vous et reconnectez-vous** (GNOME ne charge une nouvelle extension qu'à la connexion) et
+appuyez sur **Super+R**. La même commande met Déclic à jour.
 
-Désinstaller : `powershell -ExecutionPolicy Bypass -File windows\installer.ps1 -Desinstaller`
-(vos réglages dans `%APPDATA%\Declic` sont conservés).
+Il faut GNOME Shell 51 et PyGObject, présent sur presque tous les GNOME ; s'il manque, la commande indique quoi
+installer pour votre distribution. Rien n'est installé hors de votre dossier personnel, pas besoin de sudo.
+Désinstaller : `~/.local/share/declic/app/linux/installer.sh --desinstaller` (vos réglages dans
+`~/.config/declic` sont conservés).
+
+## Installer depuis les sources
+
+Pour essayer la dernière version en cours ou contribuer :
+
+```bash
+git clone https://github.com/Zeynfps/Declic.git && cd Declic
+linux/installer.sh                                               # Linux
+powershell -ExecutionPolicy Bypass -File windows\installer.ps1   # Windows (Python 3.11+ et Node.js 20+)
+```
+
+Fabriquer l'installateur Windows : `cd windows && npm install && npm run construire` (résultat dans
+`windows\dist`). Chaque étiquette de version poussée (`v0.3.0`) fait fabriquer et joindre les fichiers à la
+version par GitHub (`.github/workflows/publier.yml`).
+
+## Sous Windows
 
 La barre Windows fonctionne comme celle de GNOME : mêmes vues, mêmes raccourcis, mêmes commandes et mêmes
 réglages. Autour de la barre, l'écran est flouté et assombri (deux curseurs) ; la barre elle-même est en verre

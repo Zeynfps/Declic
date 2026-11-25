@@ -4,3 +4,5 @@ ressources/
 .venv/
 gnome/*/schemas/gschemas.compiled
 node_modules/
+windows/build/
+windows/dist/

@@ -1,0 +1,93 @@
+name: Publier
+
+# Fabrique les fichiers à télécharger et les joint à la version (release) GitHub :
+#   - Windows : Declic-Setup-X.Y.Z.exe (un seul fichier, Python compris)
+#   - Linux   : declic-X.Y.Z-linux.tar.gz (utilisé par linux/installer-en-ligne.sh)
+#
+# Se lance tout seul quand on pousse une étiquette de version :
+#   v0.3.0          → les deux
+#   v0.3.0-windows  → Windows seulement
+#   v0.3.0-linux    → Linux seulement
+# ou à la main (onglet Actions → Publier → Run workflow), pour refaire les fichiers d'une version.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      etiquette:
+        description: "Étiquette de la version (ex. v0.2.0-windows)"
+        required: true
+
+permissions:
+  contents: write
+
+env:
+  ETIQUETTE: ${{ inputs.etiquette || github.ref_name }}
+  GH_TOKEN: ${{ github.token }}
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      numero: ${{ steps.v.outputs.numero }}
+      windows: ${{ steps.v.outputs.windows }}
+      linux: ${{ steps.v.outputs.linux }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.ETIQUETTE }}
+      - id: v
+        name: Numéro de version et systèmes concernés
+        run: |
+          numero="${ETIQUETTE#v}"; numero="${numero%-windows}"; numero="${numero%-linux}"
+          echo "numero=$numero" >> "$GITHUB_OUTPUT"
+          [[ "$ETIQUETTE" != *-linux ]] && echo "windows=oui" >> "$GITHUB_OUTPUT" || true
+          [[ "$ETIQUETTE" != *-windows ]] && echo "linux=oui" >> "$GITHUB_OUTPUT" || true
+      - name: Créer la version si elle n'existe pas encore
+        run: |
+          gh release view "$ETIQUETTE" >/dev/null 2>&1 || \
+            gh release create "$ETIQUETTE" --verify-tag --prerelease --title "Déclic ${{ steps.v.outputs.numero }}" --generate-notes
+
+  windows:
+    needs: version
+    if: needs.version.outputs.windows == 'oui'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.ETIQUETTE }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Tests du service
+        working-directory: coeur
+        run: python -m unittest
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Installateur Windows
+        working-directory: windows
+        run: |
+          npm ci --no-fund --no-audit
+          npm run construire
+      - name: Joindre à la version
+        shell: bash
+        run: gh release upload "$ETIQUETTE" windows/dist/Declic-Setup-*.exe --clobber
+
+  linux:
+    needs: version
+    if: needs.version.outputs.linux == 'oui'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.ETIQUETTE }}
+      - name: Tests du service
+        working-directory: coeur
+        run: python3 -m unittest
+      - name: Archive Linux
+        run: |
+          nom="declic-${{ needs.version.outputs.numero }}-linux"
+          git archive --format=tar.gz --prefix="$nom/" -o "$nom.tar.gz" HEAD coeur gnome linux docs README.md LICENSE CHANGELOG.md
+          gh release upload "$ETIQUETTE" "$nom.tar.gz" --clobber

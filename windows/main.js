@@ -23,7 +23,11 @@ const DOSSIER_CONFIG = path.join(process.env.APPDATA || app.getPath('userData'),
 const FICHIER_SERVEUR = path.join(DOSSIER_DONNEES, 'serveur.json');
 const FICHIER_REGLAGES = path.join(DOSSIER_CONFIG, 'barre.json');
 const FICHIER_JOURNAL = path.join(DOSSIER_DONNEES, 'service.log');
-const DOSSIER_COEUR = process.env.DECLIC_COEUR || path.join(__dirname, '..', 'coeur');
+// Installé par Declic-Setup.exe : le service et un Python à lui sont livrés dans resources/ ;
+// depuis les sources : le dossier coeur/ du dépôt et le Python de l'utilisateur.
+const DOSSIER_COEUR = process.env.DECLIC_COEUR
+  || (app.isPackaged ? path.join(process.resourcesPath, 'coeur') : path.join(__dirname, '..', 'coeur'));
+const PYTHON_LIVRE = app.isPackaged ? path.join(process.resourcesPath, 'python', 'python.exe') : '';
 
 // Réglages de la barre, comme sous GNOME : flou et assombrissement de l'arrière-plan, opacité de la barre
 // (bornes et valeurs par défaut : fenetres.js)
@@ -75,6 +79,7 @@ function lireServeur() {
 // Python installé pour l'utilisateur (python.org, winget), sinon le lanceur « py », sinon « python ».
 // Le faux « python » du Microsoft Store (dossier WindowsApps) est ignoré : il ouvre le Store.
 function trouverPython() {
+  if (PYTHON_LIVRE && fs.existsSync(PYTHON_LIVRE)) return { commande: PYTHON_LIVRE, args: [] };
   const choisi = lireReglages().python;
   if (choisi && fs.existsSync(choisi)) return { commande: choisi, args: [] };
   const racine = path.join(process.env.LOCALAPPDATA || '', 'Programs', 'Python');
