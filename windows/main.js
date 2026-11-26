@@ -44,7 +44,8 @@ const REGLAGES_PAR_DEFAUT = {
   panneauNotes: true,
   panneauDepot: true,
   panneauIA: true,
-  panneauxDisposition: {}, // panneaux déplacés : {id: {x, y, l, h}}
+  panneauxDisposition: {}, // panneaux déplacés : {id: {x, y, l, h, epingle}}
+  barreDecalage: { x: 0, y: 0 }, // la barre déplacée par son pied, par rapport à sa place normale
   ...APPARENCE_PAR_DEFAUT,
   python: '',
 };
@@ -222,7 +223,10 @@ function creerFenetre() {
   fenetre.loadFile(path.join(__dirname, 'barre', 'index.html'));
   fenetre.webContents.once('did-finish-load', () => appliquerApparence(lireReglages()));
   // Un clic dans une autre fenêtre ferme la barre, en gardant la vue pour la rouvrir au même endroit
-  fenetre.on('blur', () => { if (ouverte) fermer(true); });
+  fenetre.on('blur', () => {
+    if (ouverte) fermer(true);
+    else if (epingles > 0) fenetre.setFocusable(false); // panneau épinglé quitté : rend la main
+  });
   fenetre.on('closed', () => { fenetre = null; });
 }
 
@@ -260,6 +264,8 @@ function ouvrir() {
     hauteur: ecran.bounds.height,
   });
   fenetre.webContents.send('barre:ouverture', reglages);
+  laisserPasserSouris(false);
+  fenetre.setFocusable(true);
   fenetre.show();
   fenetre.focus();
   // 3. l'adresse de la page (~0,4 s, après l'ouverture pour ne pas la retarder) ; null si ce n'est pas un navigateur
@@ -270,11 +276,25 @@ function ouvrir() {
   }
 }
 
+// Panneaux épinglés (comme les widgets épinglés de la Game Bar) : quand la barre se ferme, la fenêtre reste
+// affichée pour eux seuls ; elle laisse passer la souris partout ailleurs et ne prend pas le focus.
+let epingles = 0;
+
+function laisserPasserSouris(passer) {
+  fenetre?.setIgnoreMouseEvents(passer, { forward: true });
+}
+
 function fermer(garder = false) {
   if (!fenetre || !ouverte) return;
   ouverte = false;
   fenetre.webContents.send('barre:fermeture', { garder });
-  fenetre.hide();
+  if (epingles > 0) {
+    laisserPasserSouris(true);
+    fenetre.setFocusable(false);
+    fenetre.blur();
+  } else {
+    fenetre.hide();
+  }
   fond?.hide();
   // l'image de l'écran ne reste pas en mémoire
   fond?.webContents.send('fond:image', null);
@@ -457,7 +477,7 @@ gerer('api:supprimer', (type, cle) => requete('POST', '/v1/supprimer', { type: S
 gerer('barre:reglages', () => lireReglages());
 gerer('barre:regler', (modifs) => {
   const permis = ['nombreResultats', 'panneauPressePapiers', 'panneauApplications', 'panneauNotes', 'panneauDepot',
-    'panneauIA', 'panneauxDisposition',
+    'panneauIA', 'panneauxDisposition', 'barreDecalage',
     ...Object.keys(APPARENCE_PAR_DEFAUT)];
   const propres = Object.fromEntries(Object.entries(modifs ?? {}).filter(([k]) => permis.includes(k)));
   const reglages = ecrireReglages(propres);
@@ -503,6 +523,31 @@ gerer('panneau:depot-ouvrir', async (nom) => {
   fermer();
 });
 gerer('panneau:depot-dossier', () => shell.openPath(depot.dossier(DOSSIER_CONFIG)));
+// Épinglés : combien il y en a (la fenêtre reste-t-elle affichée barre fermée ?), et la souris au-dessus d'eux
+gerer('panneau:epingles', (nombre) => {
+  epingles = Math.max(0, Number(nombre) || 0);
+  if (!ouverte && fenetre) {
+    if (epingles > 0) {
+      laisserPasserSouris(true);
+      fenetre.setFocusable(false);
+      fenetre.showInactive();
+      if (!fond?.isVisible()) {
+        const ecran = screen.getPrimaryDisplay();
+        fenetre.setBounds(ecran.bounds);
+      }
+    } else {
+      fenetre.hide();
+    }
+  }
+  return epingles;
+});
+gerer('panneau:souris', (capter) => { if (!ouverte) laisserPasserSouris(!capter); });
+// Un clic dans un panneau épinglé (barre fermée) : la fenêtre prend le focus pour qu'on puisse y taper
+gerer('panneau:focus', () => {
+  if (ouverte || !fenetre) return;
+  fenetre.setFocusable(true);
+  fenetre.focus();
+});
 // Glisser un fichier du dépôt vers une autre application
 ipcMain.on('panneau:depot-glisser', async (evenement, nom) => {
   const chemin = depot.chemin(DOSSIER_CONFIG, String(nom));

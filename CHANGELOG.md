@@ -2,6 +2,10 @@
 
 ## À venir
 
+- **Panneaux comme la Game Bar et Steam** : on les tire depuis n'importe quelle zone (plus seulement le titre), ils
+  passent au-dessus de la barre, la barre elle-même se déplace par son pied, et la **punaise** garde un panneau à
+  l'écran quand la barre est fermée (la souris passe au travers ailleurs). Le **+** du panneau Applications ajoute
+  une application en raccourci ; clic droit pour la retirer.
 - **L'IA dans la barre**, avec la clé de votre choix (bouton + → « Clé d'IA ») : Claude, ChatGPT, Gemini, DeepSeek,
   Mistral, OpenRouter, Groq, Grok, ou Ollama sur le PC (gratuit). Clés gardées dans le trousseau du système.
   « ia question » répond dans la barre ; toute recherche propose aussi « Demander à … ici ».

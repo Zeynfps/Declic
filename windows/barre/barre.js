@@ -70,6 +70,7 @@ class Barre {
       if (!$('barre').contains(e.target) && !e.target.closest?.('.panneau')) this.fermer(true);
     });
     this.panneaux = new Panneaux(this);
+    this.rendreBarreMobile();
     window.declic.surPosition((position) => this.panneaux.placer(position));
     // Le focus ne quitte pas la barre (sauf vers un champ de formulaire)
     $('barre').addEventListener('mousedown', (e) => {
@@ -107,8 +108,10 @@ class Barre {
   // --- Ouverture et fermeture --------------------------------------------------------
   ouvrir(reglages) {
     this.reglages = { ...this.reglages, ...reglages };
+    if (this.panneaux.position) this.panneaux.placer(this.panneaux.position); // décalage de la barre à jour
     this.page = null; // arrive juste après, si un navigateur avait la main
     this.selection = null; // idem avec le raccourci « texte sélectionné »
+    this.choixAppli = false;
     this.majSaisieSelection();
     this.ouverte = true;
     this.appliquerApparence();
@@ -265,9 +268,10 @@ class Barre {
     const numero = ++this.sequence;
     const requete = this.entree.value;
     try {
-      const resultats = this.selection
+      let resultats = this.selection
         ? await api.rechercherSelection(requete, this.selection, this.reglages.nombreResultats)
-        : await api.rechercher(requete, this.reglages.nombreResultats, this.page);
+        : await api.rechercher(requete, this.choixAppli ? 40 : this.reglages.nombreResultats, this.page);
+      if (this.choixAppli) resultats = resultats.filter((r) => r.module === 'app').slice(0, this.reglages.nombreResultats);
       if (numero !== this.sequence || !this.ouverte || this.vue.type !== 'recherche') return;
       this.resultats = resultats;
       this.index = Math.min(index, Math.max(0, resultats.length - 1));
@@ -668,6 +672,7 @@ class Barre {
     const cle = e.key;
     const stop = () => { e.preventDefault(); e.stopPropagation(); };
 
+    if (cle === 'Escape' && this.choixAppli) { stop(); this.quitterChoixAppli(); return; }
     if (cle === 'Escape') { stop(); this.revenir(); return; }
     if (ctrl && (cle === 'k' || cle === 'K')) { stop(); this.basculerActions(); return; }
     if (e.altKey && cle === 'ArrowLeft') { stop(); this.revenir(); return; }
@@ -811,7 +816,12 @@ class Barre {
     }
 
     this.ajouterReglage('edit-undo-symbolic', 'Replacer les panneaux autour de la barre', [], true, {
-      activer: async () => { await this.regler({ panneauxDisposition: {} }); await this.panneaux.afficher(this.reglages); this.toast('Panneaux replacés'); },
+      activer: async () => {
+        await this.regler({ panneauxDisposition: {}, barreDecalage: { x: 0, y: 0 } });
+        this.panneaux.placer(this.panneaux.position);
+        await this.panneaux.afficher(this.reglages);
+        this.toast('Barre et panneaux replacés');
+      },
       ajuster: () => {}, maj: () => {}, titreAction: () => 'Replacer',
     });
 
@@ -926,11 +936,67 @@ class Barre {
     }
   }
 
+  // La barre se déplace en la tirant par son pied (hors boutons), comme une fenêtre de la Game Bar
+  rendreBarreMobile() {
+    const pied = document.querySelector('.pied');
+    pied.title = 'Tirer pour déplacer la barre';
+    pied.addEventListener('mousedown', (e) => {
+      if (e.button !== 0 || e.target.closest('button')) return;
+      e.preventDefault();
+      const depart = { ...(this.reglages.barreDecalage || { x: 0, y: 0 }) };
+      const sx = e.clientX;
+      const sy = e.clientY;
+      document.body.classList.add('barre-deplacee');
+      const bouger = (m) => {
+        this.reglages.barreDecalage = { x: depart.x + m.clientX - sx, y: depart.y + m.clientY - sy };
+        this.panneaux.placer(this.panneaux.position);
+      };
+      const lacher = () => {
+        document.removeEventListener('mousemove', bouger);
+        document.removeEventListener('mouseup', lacher);
+        document.body.classList.remove('barre-deplacee');
+        this.regler({ barreDecalage: this.reglages.barreDecalage });
+      };
+      document.addEventListener('mousemove', bouger);
+      document.addEventListener('mouseup', lacher);
+    });
+  }
+
   majSaisieSelection() {
     if (this.placeholderNormal === undefined) this.placeholderNormal = this.entree.placeholder;
-    this.entree.placeholder = this.selection
-      ? `Texte sélectionné (${this.selection.length} caractères) : que faire ? ou posez une question`
-      : this.placeholderNormal;
+    this.entree.placeholder = this.choixAppli ? 'Quelle application ajouter au panneau ? Tapez son nom'
+      : this.selection ? `Texte sélectionné (${this.selection.length} caractères) : que faire ? ou posez une question`
+        : this.placeholderNormal;
+  }
+
+  // « + » du panneau Applications : la barre ne propose que des applications ; Entrée l'ajoute au panneau
+  choisirAppli() {
+    this.choixAppli = true;
+    this.selection = null;
+    this.pile = [{ type: 'recherche' }];
+    this.afficherVue();
+    this.entree.value = '';
+    this.majSaisieSelection();
+    this.entree.focus();
+    this.rechercher();
+  }
+
+  quitterChoixAppli() {
+    this.choixAppli = false;
+    this.entree.value = '';
+    this.majSaisieSelection();
+    this.rechercher();
+  }
+
+  async ajouterAppli(resultat) {
+    if (resultat.favori) {
+      this.toast(`${resultat.titre} est déjà dans le panneau`);
+    } else {
+      await this.basculerFavori(resultat);
+      this.toast(`${resultat.titre} ajoutée au panneau Applications`);
+    }
+    this.quitterChoixAppli();
+    await this.panneaux.rafraichir('applications');
   }
 
   ajouterReglage(nomIcone, titre, controles, cliquable, reglage) {
@@ -1268,6 +1334,7 @@ class Barre {
     }
     const resultat = this.resultats[this.index];
     if (!resultat) return;
+    if (this.choixAppli) { this.ajouterAppli(resultat); return; }
     if (resultat.attend_argument && resultat.argument === null) {
       this.empiler({ type: 'argument', resultat });
       return;

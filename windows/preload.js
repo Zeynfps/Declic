@@ -48,5 +48,8 @@ contextBridge.exposeInMainWorld('declic', {
     ouvrirDepot: (nom) => appeler('panneau:depot-ouvrir', nom),
     dossierDepot: () => appeler('panneau:depot-dossier'),
     glisserDepot: (nom) => ipcRenderer.send('panneau:depot-glisser', nom),
+    signalerEpingles: (nombre) => appeler('panneau:epingles', nombre),
+    capterSouris: (capter) => appeler('panneau:souris', capter),
+    prendreFocus: () => appeler('panneau:focus'),
   },
 });

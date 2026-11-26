@@ -61,8 +61,11 @@ function appliquerVerre({ teinte, base, reflet, flouVerre }) {
   if (flouVerre !== undefined) racine.setProperty('--flou-verre', `${flouVerre}px`);
 }
 
+let dernierEcran = null;
+
 // Image de l'écran, placée pour que la barre en montre exactement la partie qui est derrière elle
 function placerEcran(ecran) {
+  dernierEcran = ecran;
   const verre = document.getElementById('verre');
   const racine = document.documentElement.style;
   if (!ecran) {
@@ -78,8 +81,15 @@ function placerEcran(ecran) {
   preparerLentille();
   verre.style.backgroundImage = `url("${ecran.image}")`;
   verre.style.backgroundSize = `${ecran.largeur}px ${ecran.hauteur}px`;
-  verre.style.backgroundPosition = `${-ecran.x - 1}px ${-ecran.y - 1}px`; // 1 px : la bordure de la barre
+  recalerVerre();
   verre.hidden = false;
 }
 
 window.addEventListener('load', preparerLentille);
+
+// La barre a pu être déplacée (par son pied) : l'image suit, pour toujours montrer ce qui est derrière elle
+function recalerVerre() {
+  if (!dernierEcran) return;
+  const r = document.getElementById('barre').getBoundingClientRect();
+  document.getElementById('verre').style.backgroundPosition = `${-r.left - 1}px ${-r.top - 1}px`; // 1 px : la bordure
+}
