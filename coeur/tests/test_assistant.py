@@ -80,6 +80,20 @@ class TestAssistant(unittest.TestCase):
         self.assertEqual((fournisseur.cle, cle, modele), ("deepseek", "sk-test", "deepseek-chat"))
         self.assertIn("Corrige", consigne)
 
+    def test_repondre_a_l_ia(self):
+        self._configurer()
+        with mock.patch.object(ia_api, "demander", side_effect=["Paris.", "Environ 2,1 millions."]) as appel:
+            self.registre.executer("assistant.demander", "Capitale de la France ?")
+            reponse = self.registre.executer("assistant.repondre", "Et sa population ?")
+        self.assertEqual(reponse.texte, "Environ 2,1 millions.")
+        historique = appel.call_args.kwargs["historique"]
+        self.assertEqual([m["role"] for m in historique], ["user", "assistant"])
+        self.assertEqual(historique[1]["content"], "Paris.")
+        # une nouvelle question repart de zéro
+        with mock.patch.object(ia_api, "demander", return_value="Rome.") as appel:
+            self.registre.executer("assistant.demander", "Capitale de l'Italie ?")
+        self.assertEqual(appel.call_args.kwargs["historique"], [])
+
     def test_question_dans_la_barre_et_erreur_lisible(self):
         self._configurer()
         premier = self.registre.rechercher("ia combien font 2+2", 8)[0]

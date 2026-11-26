@@ -1,6 +1,6 @@
 # Journal des versions
 
-## À venir
+## 0.4.0 — IA dans la barre, panneaux et dépôt (26 novembre 2026)
 
 - **Panneaux comme la Game Bar et Steam** : on les tire depuis n'importe quelle zone (plus seulement le titre), ils
   passent au-dessus de la barre, la barre elle-même se déplace par son pied, et la **punaise** garde un panneau à
@@ -15,6 +15,14 @@
 - **Panneaux autour de la barre** (Windows), comme la Game Bar : presse-papiers, applications épinglées, bloc-notes
   enregistré tout seul, dépôt de fichiers (glisser-déposer, dans un sens comme dans l'autre). Chacun se masque dans
   les réglages.
+- **Répondre à l'IA** depuis la barre : sous sa réponse, on tape la suite et Entrée l'envoie (la conversation
+  garde les 20 derniers échanges ; une nouvelle question repart de zéro).
+- **Pilule à côté de « Déclic »** (remplace le panneau IA) : les requêtes d'IA utilisées et l'heure de remise à
+  zéro, ou « Texte sélectionné · N caractères ».
+- **Dépôt** : un dossier créé par Déclic (`%APPDATA%\Declic\depot`), que le panneau montre tel qu'il est (même
+  modifié depuis l'Explorateur). Un fichier lâché dessus y est **copié** (l'original reste) ; tiré hors du dépôt, il
+  est **déplacé** (il quitte le dossier une fois arrivé, même dans l'Explorateur ou sur le bureau) ; la croix
+  l'envoie à la corbeille. Le dépôt épinglé reçoit enfin les fichiers, et reste à sa place au démarrage.
 - Les deux raccourcis (ouvrir Déclic, texte sélectionné) se changent dans les réglages, au clavier.
 - Les bascules (Bluetooth, Wi-Fi, Ne pas déranger, mode avion, thème sombre…) affichent leur état dans la
   barre : « Activé » ou « Désactivé », avec un petit interrupteur.

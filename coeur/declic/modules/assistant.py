@@ -89,8 +89,13 @@ class Assistant(Module):
     def _plateforme_secrets(self) -> bool:
         return self.contexte.plateforme.prend_en_charge("secret_lire")
 
-    def demander(self, consigne: str) -> tuple[str, str]:
-        """Pose la question à l'IA active. Renvoie (nom de l'IA, réponse)."""
+    conversation: list[dict] = []  # la conversation en cours (on peut répondre à l'IA depuis la barre)
+    MAX_ECHANGES = 20
+
+    def demander(self, consigne: str, suite: bool = False) -> tuple[str, str]:
+        """Pose la question à l'IA active. Renvoie (nom de l'IA, réponse).
+        suite : la question continue la conversation en cours (réponse de l'utilisateur à l'IA)."""
+        historique = list(self.conversation) if suite else []
         actif = self._actif()
         if actif is None:
             raise ia_api.ErreurIA("aucune IA configurée : bouton + → « Clé d'IA »")
@@ -101,7 +106,7 @@ class Assistant(Module):
         recus: dict = {}
         try:
             reponse = ia_api.demander(fournisseur, cle or "", reglage.get("modele", ""), SYSTEME, consigne,
-                                      reglage.get("adresse", ""), entetes_recus=recus)
+                                      reglage.get("adresse", ""), entetes_recus=recus, historique=historique)
         except ia_api.ErreurIA as exc:
             limite = ia_quota.limite_dans_erreur(exc.detail) if exc.code == 429 else None
             if limite:
@@ -110,21 +115,25 @@ class Assistant(Module):
                 raise
             # Modèle retiré : on passe à celui que le fournisseur conseille, et on le garde
             reponse = ia_api.demander(fournisseur, cle or "", exc.modele_conseille, SYSTEME, consigne,
-                                      reglage.get("adresse", ""), entetes_recus=recus)
+                                      reglage.get("adresse", ""), entetes_recus=recus, historique=historique)
             reglages = self._reglages()
             reglages["fournisseurs"][fournisseur.cle]["modele"] = exc.modele_conseille
             self._ecrire(reglages)
         self.quotas.noter(fournisseur.cle, recus)
+        self.conversation = (historique + [{"role": "user", "content": consigne},
+                                           {"role": "assistant", "content": reponse}])[-2 * self.MAX_ECHANGES:]
         return fournisseur.nom.split(" (")[0], reponse
 
     # --- Commandes ------------------------------------------------------------------------
-    def _repondre(self, consigne_de):
+    def _repondre(self, consigne_de, suite: bool = False):
         def action(_contexte, argument):
             argument = (argument or "").strip()
             if not argument:
                 return Reponse.erreur("Rien à envoyer à l'IA")
+            if suite and not self.conversation:
+                return Reponse.erreur("Pas de conversation en cours : posez d'abord une question")
             try:
-                nom, reponse = self.demander(consigne_de(argument[:MAX_SELECTION]))
+                nom, reponse = self.demander(consigne_de(argument[:MAX_SELECTION]), suite=suite)
             except ia_api.ErreurIA as exc:
                 return Reponse.erreur(f"IA : {exc}")
             cle = self._actif()[0].cle
@@ -147,6 +156,23 @@ class Assistant(Module):
             lignes.append(f"{nom}{marque} — {reglage.get('modele', '?')}\n  {ia_quota.resume(etat)} ({source})")
         return "\n".join(lignes) or "Aucune IA configurée : bouton + → « Clé d'IA »."
 
+    def pilule(self) -> str:
+        """Version courte pour la pilule de la barre : « Gemini · 3 / 1000 · ↻ 09:00 »."""
+        actif = self._actif()
+        if actif is None:
+            return ""
+        fournisseur, _reglage = actif
+        etat = self.etat_quota(fournisseur.cle)
+        nom = fournisseur.nom.split(" (")[0]
+        compte = f"{etat['utilise']} / {etat['limite']}" if etat["limite"] else \
+            f"{etat['utilise']} requête{'s' if etat['utilise'] > 1 else ''}"
+        if etat["reset"]:
+            compte += f" · ↻ {etat['reset'].astimezone():%H:%M}"
+        return f"{nom} · {compte}"
+
+    def _pilule(self, _contexte, _argument):
+        return Reponse(message=self.pilule(), fermer=False)
+
     def _quota(self, _contexte, _argument):
         return Reponse(message="Requêtes d'IA", texte=self.rapport_quotas(), fermer=False)
 
@@ -159,7 +185,8 @@ class Assistant(Module):
         return action
 
     def commandes(self) -> list[Commande]:
-        commandes = [Commande(
+        commandes = [Commande("assistant.pilule", "IA : pilule de la barre", self._pilule, cachee=True,
+                              requiert="secret_lire"), Commande(
             "assistant.quota", "IA : requêtes restantes", self._quota, icone=ICONE, requiert="secret_lire",
             description="Où en sont vos requêtes, et quand le compteur repart à zéro",
             mots_cles=("ia", "quota", "limite", "requêtes", "crédit")), Commande(
@@ -170,6 +197,9 @@ class Assistant(Module):
             commandes.append(Commande(
                 f"assistant.{cle}", titre, self._repondre(lambda t, c=consigne: f"{c}\n\nTexte :\n{t}"),
                 argument="texte", icone=icone, cachee=True, requiert="secret_lire"))
+        commandes.append(Commande(
+            "assistant.repondre", "Répondre à l'IA", self._repondre(lambda t: t, suite=True), argument="réponse",
+            icone=ICONE, cachee=True, requiert="secret_lire"))
         commandes.append(Commande(
             "assistant.question-selection", "Poser une question sur le texte",
             self._repondre(lambda t: t), argument="texte", icone=ICONE, cachee=True, requiert="secret_lire"))

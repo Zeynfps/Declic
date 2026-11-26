@@ -16,6 +16,7 @@ const fenetres = require('./fenetres');
 const { capturer } = require('./capture');
 const { iconeFichier } = require('./logos');
 const { processusAuPremierPlan } = require('./premier-plan');
+const glisser = require('./glisser');
 const { lireSelection } = require('./selection');
 
 const RACCOURCI_PAR_DEFAUT = 'Alt+Space';
@@ -265,6 +266,7 @@ function ouvrir() {
   });
   fenetre.webContents.send('barre:ouverture', reglages);
   laisserPasserSouris(false);
+  formeComplete();
   fenetre.setFocusable(true);
   fenetre.show();
   fenetre.focus();
@@ -279,9 +281,24 @@ function ouvrir() {
 // Panneaux épinglés (comme les widgets épinglés de la Game Bar) : quand la barre se ferme, la fenêtre reste
 // affichée pour eux seuls ; elle laisse passer la souris partout ailleurs et ne prend pas le focus.
 let epingles = 0;
+let formesEpingles = []; // rectangles des panneaux épinglés, en pixels de la fenêtre
 
 function laisserPasserSouris(passer) {
   fenetre?.setIgnoreMouseEvents(passer, { forward: true });
+}
+
+// Barre fermée : la fenêtre n'existe plus qu'à l'endroit des panneaux épinglés. On peut y cliquer, y taper et y
+// lâcher des fichiers ; partout ailleurs, souris et glisser-déposer vont aux applications de dessous.
+function formeEpingles() {
+  if (!fenetre) return;
+  laisserPasserSouris(false);
+  fenetre.setShape(formesEpingles.length ? formesEpingles : [{ x: 0, y: 0, width: 1, height: 1 }]);
+}
+
+function formeComplete() {
+  if (!fenetre) return;
+  const { width, height } = fenetre.getBounds();
+  fenetre.setShape([{ x: 0, y: 0, width, height }]);
 }
 
 function fermer(garder = false) {
@@ -289,7 +306,7 @@ function fermer(garder = false) {
   ouverte = false;
   fenetre.webContents.send('barre:fermeture', { garder });
   if (epingles > 0) {
-    laisserPasserSouris(true);
+    formeEpingles();
     fenetre.setFocusable(false);
     fenetre.blur();
   } else {
@@ -512,9 +529,12 @@ gerer('barre:icone-fichier', (chemin) => iconeFichier(chemin));
 // Panneaux : bloc-notes et dépôt de fichiers (dossier %APPDATA%\Declic)
 gerer('panneau:note-lire', () => depot.lireNote(DOSSIER_CONFIG));
 gerer('panneau:note-ecrire', (texte) => depot.ecrireNote(DOSSIER_CONFIG, String(texte ?? '')));
-gerer('panneau:depot-lister', async () => Promise.all(depot.lister(DOSSIER_CONFIG).map(async (f) => ({
-  ...f, icone: await iconeFichier(f.chemin).catch(() => null),
-}))));
+const iconesDepot = new Map(); // nom → icône, pour lancer un glisser sans attendre
+gerer('panneau:depot-lister', async () => Promise.all(depot.lister(DOSSIER_CONFIG).map(async (f) => {
+  const icone = await iconeFichier(f.chemin).catch(() => null);
+  if (icone) iconesDepot.set(f.nom, icone);
+  return { ...f, icone };
+})));
 gerer('panneau:depot-ajouter', (chemins) => depot.ajouter(DOSSIER_CONFIG, Array.isArray(chemins) ? chemins.map(String) : []));
 gerer('panneau:depot-supprimer', (nom) => depot.supprimer(DOSSIER_CONFIG, String(nom)));
 gerer('panneau:depot-ouvrir', async (nom) => {
@@ -524,35 +544,86 @@ gerer('panneau:depot-ouvrir', async (nom) => {
 });
 gerer('panneau:depot-dossier', () => shell.openPath(depot.dossier(DOSSIER_CONFIG)));
 // Épinglés : combien il y en a (la fenêtre reste-t-elle affichée barre fermée ?), et la souris au-dessus d'eux
-gerer('panneau:epingles', (nombre) => {
+gerer('panneau:epingles', (nombre, formes) => {
   epingles = Math.max(0, Number(nombre) || 0);
+  formesEpingles = (Array.isArray(formes) ? formes : []).map((f) => ({
+    x: Math.round(f.x), y: Math.round(f.y), width: Math.max(1, Math.round(f.width)), height: Math.max(1, Math.round(f.height)),
+  }));
   if (!ouverte && fenetre) {
     if (epingles > 0) {
-      laisserPasserSouris(true);
+      if (!fond?.isVisible()) fenetre.setBounds(screen.getPrimaryDisplay().bounds);
+      formeEpingles();
       fenetre.setFocusable(false);
       fenetre.showInactive();
-      if (!fond?.isVisible()) {
-        const ecran = screen.getPrimaryDisplay();
-        fenetre.setBounds(ecran.bounds);
-      }
     } else {
       fenetre.hide();
     }
   }
   return epingles;
 });
-gerer('panneau:souris', (capter) => { if (!ouverte) laisserPasserSouris(!capter); });
+gerer('panneau:souris', () => {}); // remplacé par la forme de la fenêtre (formeEpingles)
 // Un clic dans un panneau épinglé (barre fermée) : la fenêtre prend le focus pour qu'on puisse y taper
 gerer('panneau:focus', () => {
   if (ouverte || !fenetre) return;
   fenetre.setFocusable(true);
   fenetre.focus();
 });
-// Glisser un fichier du dépôt vers une autre application
-ipcMain.on('panneau:depot-glisser', async (evenement, nom) => {
-  const chemin = depot.chemin(DOSSIER_CONFIG, String(nom));
-  const icone = await iconeFichier(chemin).catch(() => null);
+// Le panneau montre le dossier tel qu'il est : un fichier ajouté ou retiré depuis l'Explorateur y apparaît aussitôt
+function surveillerDepot() {
+  let minuteur = 0;
+  try {
+    fs.watch(depot.dossier(DOSSIER_CONFIG), () => {
+      clearTimeout(minuteur);
+      minuteur = setTimeout(() => fenetre?.webContents.send('panneau:depot-change'), 300);
+    });
+  } catch {
+    // sans surveillance, le panneau se met à jour à chaque ouverture de la barre
+  }
+}
+
+// Après un glisser hors du dépôt : le fichier en sort (déplacé, pas copié) s'il est sûr qu'il est arrivé.
+// effet : ce que la cible en a fait (« move », « copy », « link », « none ») quand on le sait, sinon null (le
+// glisser d'Electron ne le dit pas).
+async function apresLacher(nom, chemin, effet) {
+  const annoncer = () => fenetre?.webContents.send('panneau:depot-sorti', nom);
+  const fini = () => { iconesDepot.delete(nom); fenetre?.webContents.send('panneau:depot-change'); };
+  const sortir = () => (fs.existsSync(chemin) ? shell.trashItem(chemin).then(fini).catch(() => {}) : fini());
+  if (!fs.existsSync(chemin)) { annoncer(); fini(); return; } // la cible l'a déplacé elle-même (Explorateur)
+  if (effet === 'none' || effet === 'link') return; // annulé, refusé ; raccourci créé : le fichier doit rester
+  const cible = glisser.sousLePointeur();
+  if (!cible || cible.declic || (effet === null && !cible.prendFichiers)) return; // dans le vide, sur Déclic
+  const dossier = await glisser.dossierDeLaFenetre(cible);
+  if (dossier) {
+    // un dossier : le fichier n'en sort que s'il y est bien arrivé (même taille ; une grosse copie peut durer)
+    const arrive = path.join(dossier, nom);
+    const taille = fs.statSync(chemin).size;
+    for (let essai = 0; essai < 1200; essai++) {
+      if (!fs.existsSync(chemin)) { annoncer(); fini(); return; }
+      if (fs.existsSync(arrive) && path.resolve(arrive) !== path.resolve(chemin) && fs.statSync(arrive).size === taille) {
+        annoncer();
+        sortir();
+        return;
+      }
+      await new Promise((r) => setTimeout(r, 500));
+    }
+    return; // pas arrivé (refusé, renommé…) : il reste dans le dépôt
+  }
+  // une application (Discord, navigateur…) : elle lit le fichier d'abord, puis il quitte le dépôt (corbeille)
+  annoncer();
+  setTimeout(sortir, 10_000);
+}
+
+// Glisser un fichier hors du dépôt (vers l'Explorateur, le bureau, Discord…) : on regarde où il a été lâché
+ipcMain.on('panneau:depot-glisser', (evenement, nom) => {
+  nom = String(nom);
+  const chemin = depot.chemin(DOSSIER_CONFIG, nom);
+  if (!fs.existsSync(chemin) || !glisser.boutonTenu()) return; // souris déjà relâchée : pas de glisser
+  const icone = iconesDepot.get(nom);
+  glisser.echapPresse(); // remet à zéro « Échap pressé depuis… »
+  // startDrag ne rend la main qu'une fois le fichier lâché (ou le glisser annulé)
   evenement.sender.startDrag({ file: chemin, icon: icone ? nativeImage.createFromDataURL(icone) : path.join(__dirname, 'icones', 'declic.png') });
+  if (glisser.echapPresse()) return;
+  apresLacher(nom, chemin, null).catch(() => {});
 });
 
 
@@ -564,6 +635,8 @@ if (!app.requestSingleInstanceLock()) {
   app.on('second-instance', ouvrir);
   app.whenReady().then(async () => {
     app.setAppUserModelId('Declic');
+    fs.mkdirSync(depot.dossier(DOSSIER_CONFIG), { recursive: true }); // le dossier du dépôt
+    surveillerDepot();
     creerFenetre();
     creerFond();
     creerZoneNotif();

@@ -274,7 +274,7 @@ textarea.champ { min-height: 72px; resize: none; }
 .pied-logo { display: flex; padding: 3px; border-radius: 6px; opacity: 0.85; }
 .pied-logo:hover { background: var(--survol); opacity: 1; }
 .pied-icone { display: inline-flex; color: var(--doux); }
-.pied-texte { flex: 1; min-width: 0; color: var(--doux); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pied-texte { flex: 0 1 auto; min-width: 0; color: var(--doux); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pied-texte.erreur, .pied-icone.erreur { color: var(--erreur); }
 .pied-texte.alerte, .pied-icone.alerte { color: var(--alerte); }
 .pied-bouton { display: flex; align-items: center; gap: 6px; padding: 5px 8px; border-radius: 7px; color: rgba(255, 255, 255, 0.85); white-space: nowrap; }
@@ -482,3 +482,13 @@ body.barre-deplacee .pied { cursor: grabbing; }
 .panneau-vide-bouton { border: 0; background: transparent; text-align: left; font: inherit; font-size: 12.5px;
   color: rgba(255, 255, 255, 0.55); border-radius: 8px; cursor: pointer; }
 .panneau-vide-bouton:hover { background: rgba(255, 255, 255, 0.06); color: #fff; }
+
+/* Pilule à côté de « Déclic » : requêtes de l'IA, ou texte sélectionné */
+.pilule {
+  flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis;
+  font-size: 11.5px; padding: 2px 9px; border-radius: 999px; margin-left: 8px; white-space: nowrap;
+  background: rgba(255, 255, 255, 0.09); color: rgba(255, 255, 255, 0.72); border: 1px solid rgba(255, 255, 255, 0.10);
+}
+.pilule.selection { background: rgba(53, 132, 228, 0.22); color: #cfe3ff; border-color: rgba(53, 132, 228, 0.45); }
+/* « Déclic » et la pilule à gauche, les boutons à droite */
+#principal { margin-left: auto; }

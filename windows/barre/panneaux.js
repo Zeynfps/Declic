@@ -46,6 +46,9 @@ class Panneaux {
         window.declic.panneaux.capterSouris(dessus).catch(() => {});
       }
     });
+    // Fichier tiré hors du dépôt et lâché dans une application : il en sort (déplacé, pas copié)
+    window.declic.panneaux.surDepotSorti((nom) => this.barre.toast(`${nom} : déplacé hors du dépôt`));
+    window.declic.panneaux.surDepotChange(() => this.rafraichir('depot'));
     // Au démarrage de Déclic : les panneaux épinglés s'affichent tout de suite
     window.declic.reglages().then((r) => this.afficherEpingles(r)).catch(() => {});
   }
@@ -68,7 +71,7 @@ class Panneaux {
 
   constructeurs() {
     return {
-      pp: () => this.pressePapiers(), applications: () => this.applications(), ia: () => this.ia(),
+      pp: () => this.pressePapiers(), applications: () => this.applications(),
       notes: () => this.notes(), depot: () => this.depot(),
     };
   }
@@ -78,10 +81,10 @@ class Panneaux {
     const r = reglages;
     this.disposition = { ...(r.panneauxDisposition || {}) };
     if (this.assezDePlace) {
-      const cles = { pp: 'panneauPressePapiers', applications: 'panneauApplications', ia: 'panneauIA',
+      const cles = { pp: 'panneauPressePapiers', applications: 'panneauApplications',
         notes: 'panneauNotes', depot: 'panneauDepot' };
       const fabriquer = this.constructeurs();
-      for (const [id, colonne] of [['pp', this.gauche], ['applications', this.gauche], ['ia', this.gauche],
+      for (const [id, colonne] of [['pp', this.gauche], ['applications', this.gauche],
         ['notes', this.droite], ['depot', this.droite]]) {
         if (r[cles[id]] !== false) colonne.append(await fabriquer[id]());
       }
@@ -110,9 +113,16 @@ class Panneaux {
     this.signalerEpingles();
   }
 
+  // Combien de panneaux sont épinglés, et où (barre fermée, la fenêtre prend leur forme)
   signalerEpingles() {
-    const nombre = Object.values(this.disposition).filter((p) => p?.epingle).length;
-    window.declic.panneaux.signalerEpingles(nombre).catch(() => {});
+    requestAnimationFrame(() => {
+      const nombre = Object.values(this.disposition).filter((p) => p?.epingle).length;
+      const formes = [...this.libres.querySelectorAll('.panneau.epingle')].map((p) => {
+        const r = p.getBoundingClientRect();
+        return { x: r.left - 2, y: r.top - 2, width: r.width + 4, height: r.height + 4 };
+      });
+      window.declic.panneaux.signalerEpingles(nombre, formes).catch(() => {});
+    });
   }
 
   vider() {
@@ -133,8 +143,9 @@ class Panneaux {
       this.libres.append(panneau);
     }
     if (place) {
-      const maxX = window.innerWidth - 120;
-      const maxY = window.innerHeight - 60;
+      // l'écran, pas la fenêtre : au démarrage, elle n'a pas encore la taille de l'écran
+      const maxX = Math.max(window.innerWidth, window.screen.width) - 120;
+      const maxY = Math.max(window.innerHeight, window.screen.height) - 60;
       panneau.style.left = `${Math.max(0, Math.min(maxX, place.x))}px`;
       panneau.style.top = `${Math.max(0, Math.min(maxY, place.y))}px`;
       if (place.l) panneau.style.width = `${place.l}px`;
@@ -177,6 +188,7 @@ class Panneaux {
         document.removeEventListener('mouseup', lacher);
         panneau.classList.remove('deplace');
         this.enregistrerDisposition();
+        this.signalerEpingles(); // un panneau épinglé a pu bouger
       };
       document.addEventListener('mousemove', bouger);
       document.addEventListener('mouseup', lacher);
@@ -406,7 +418,8 @@ class Panneaux {
       zone.classList.remove('survol');
       if (!e.dataTransfer?.files?.length) return;
       try {
-        const ajoutes = await window.declic.panneaux.deposer(e.dataTransfer.files);
+        // une vraie liste : une FileList ne passe pas le pont entre la page et Déclic
+        const ajoutes = await window.declic.panneaux.deposer([...e.dataTransfer.files]);
         this.barre.toast(ajoutes.length ? `${ajoutes.length} fichier${ajoutes.length > 1 ? 's' : ''} gardé${ajoutes.length > 1 ? 's' : ''} dans le dépôt` : 'Déjà dans le dépôt');
       } catch (err) {
         this.barre.toast(`Dépôt impossible : ${err.message}`, 'erreur');

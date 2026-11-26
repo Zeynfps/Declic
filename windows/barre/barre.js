@@ -92,6 +92,7 @@ class Barre {
       this.afficherVue();
       this.entree.value = '';
       this.majSaisieSelection();
+      this.majPilule();
       if (!texte) this.toast(refus ? `Copie impossible ici : ${refus}` : 'Aucun texte sélectionné', 'alerte');
       this.rechercher();
     });
@@ -113,6 +114,7 @@ class Barre {
     this.selection = null; // idem avec le raccourci « texte sélectionné »
     this.choixAppli = false;
     this.majSaisieSelection();
+    this.majPilule();
     this.ouverte = true;
     this.appliquerApparence();
     this.panneaux.afficher(this.reglages);
@@ -222,7 +224,8 @@ class Barre {
       this.preparerEntete(vue.resultat.titre, vue.resultat.attend_argument, true, restaurer ? vue.requete ?? '' : '');
       this.afficherArgument();
     } else if (vue.type === 'texte') {
-      this.preparerEntete(vue.titre, '', false);
+      // Réponse de l'IA : on peut lui répondre en tapant ici (Entrée envoie ; champ vide : Entrée copie)
+      this.preparerEntete(vue.titre, vue.prose ? `Répondre à ${vue.ia || "l'IA"}… (Entrée)` : '', Boolean(vue.prose));
       this.afficherTexte(vue);
     } else if (vue.type === 'reglages') {
       this.preparerEntete('Réglages', '↑ ↓ pour choisir, ← → pour ajuster', false);
@@ -247,7 +250,7 @@ class Barre {
   }
 
   texteModifie() {
-    if (!this.ouverte || this.entree.readOnly) return;
+    if (!this.ouverte || this.entree.readOnly || this.vue.type === 'texte') return;
     this.aConfirmer = null;
     if (this.vue.type === 'argument') {
       this.afficherArgument();
@@ -505,10 +508,10 @@ class Barre {
     if (!vue) return [];
     const revenir = { titre: 'Revenir', icone: 'go-previous-symbolic', faire: () => this.revenir() };
     if (vue.type === 'texte') {
-      const liste = [{ titre: 'Copier le texte', icone: 'edit-copy-symbolic', faire: () => this.copier(vue.texte) }];
+      const liste = [{ titre: 'Copier le texte', icone: 'edit-copy-symbolic', faire: () => this.copier(vue.dernier ?? vue.texte) }];
       if (vue.remplacable) {
         liste.push({ titre: 'Remplacer la sélection', icone: 'edit-paste-symbolic',
-          faire: () => this.executer({ commande: 'pp.coller', titre: 'Remplacer' }, vue.texte) });
+          faire: () => this.executer({ commande: 'pp.coller', titre: 'Remplacer' }, vue.dernier ?? vue.texte) });
       }
       return [...liste, revenir];
     }
@@ -796,7 +799,6 @@ class Barre {
     for (const [cle, titre, nomIcone] of [
       ['panneauPressePapiers', 'Presse-papiers', 'edit-paste-symbolic'],
       ['panneauApplications', 'Applications épinglées', 'view-app-grid-symbolic'],
-      ['panneauIA', 'IA : requêtes restantes', 'user-available-symbolic'],
       ['panneauNotes', 'Bloc-notes', 'document-edit-symbolic'],
       ['panneauDepot', 'Dépôt de fichiers', 'folder-symbolic'],
     ]) {
@@ -1305,7 +1307,12 @@ class Barre {
   // --- Exécution ----------------------------------------------------------------------
   valider() {
     const vue = this.vue;
-    if (vue.type === 'texte') { this.copier(vue.texte); return; }
+    if (vue.type === 'texte') {
+      const reponse = this.entree.value.trim();
+      if (vue.prose && reponse) { this.repondreIA(vue, reponse); return; }
+      this.copier(vue.dernier ?? vue.texte);
+      return;
+    }
     if (vue.type === 'reglages') { this.reglagesLignes[this.index]?.activer(); return; }
     if (vue.type === 'ajout') {
       const creation = vue.creations?.[this.index];
@@ -1349,6 +1356,43 @@ class Barre {
     this.executer(resultat, resultat.argument ?? null);
   }
 
+  // Pilule à côté de « Déclic » : le texte sélectionné, sinon où en sont les requêtes de l'IA
+  async majPilule() {
+    const pilule = $('pilule');
+    if (this.selection) {
+      pilule.textContent = `Texte sélectionné · ${this.selection.length} caractère${this.selection.length > 1 ? 's' : ''}`;
+      pilule.className = 'pilule selection';
+      pilule.hidden = false;
+      return;
+    }
+    const r = await api.executer('assistant.pilule', null).catch(() => null);
+    if (this.selection) return; // arrivée entre-temps
+    pilule.textContent = r?.message || '';
+    pilule.className = 'pilule';
+    pilule.hidden = !r?.message;
+    pilule.title = "Requêtes d'IA depuis la remise à zéro du fournisseur (↻ : heure de la remise à zéro)";
+  }
+
+  // Suite de la conversation : la réponse s'ajoute sous les précédentes
+  async repondreIA(vue, reponse) {
+    this.entree.value = '';
+    this.toast("L'IA réfléchit…", 'alerte');
+    try {
+      const r = await api.executer('assistant.repondre', reponse);
+      if (!this.ouverte || this.vue !== vue) return;
+      if (r.statut !== 'ok') { this.toast(r.message || 'Échec', 'erreur'); return; }
+      vue.texte = `${vue.texte}\n\n— Vous : ${reponse}\n\n${r.texte}`;
+      vue.dernier = r.texte;
+      vue.message = r.message;
+      this.afficherTexte(vue);
+      this.liste.scrollTop = this.liste.scrollHeight; // la nouvelle réponse en vue
+      this.majPilule();
+      this.piedParDefaut();
+    } catch (e) {
+      this.toast(`Échec : ${e.message}`, 'erreur');
+    }
+  }
+
   async executer(resultat, argument) {
     this.aConfirmer = null;
     if (resultat.commande.startsWith('assistant.')) this.toast("L'IA réfléchit…", 'alerte');
@@ -1361,7 +1405,9 @@ class Barre {
         this.fermer();
         if (reponse.message) window.declic.osd(reponse.message);
       } else if (reponse.texte) {
+        if (resultat.commande.startsWith('assistant.')) this.majPilule();
         this.empiler({ type: 'texte', titre: resultat.titre, message: reponse.message, texte: reponse.texte,
+          dernier: reponse.texte, ia: (reponse.message.match(/^Réponse de ([^·]+)/) || [])[1]?.trim(),
           remplacable: Boolean(this.selection) && resultat.commande.startsWith('assistant.'),
           prose: resultat.commande.startsWith('assistant.') });
       } else {

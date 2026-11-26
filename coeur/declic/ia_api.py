@@ -139,12 +139,13 @@ def choisir_modele(fournisseur: Fournisseur, disponibles: list[str]) -> str:
 
 
 def demander(fournisseur: Fournisseur, cle: str, modele: str, systeme: str, question: str, adresse: str = "",
-             entetes_recus: dict | None = None) -> str:
-    """Une question, une réponse (texte)."""
+             entetes_recus: dict | None = None, historique: list[dict] | None = None) -> str:
+    """Une question, une réponse (texte). historique : les échanges précédents de la conversation
+    ([{"role": "user" | "assistant", "content": …}]), pour pouvoir répondre à l'IA."""
     racine = (adresse or fournisseur.adresse).rstrip("/")
+    messages = [*(historique or []), {"role": "user", "content": question}]
     if fournisseur.format == "anthropic":
-        corps = {"model": modele, "max_tokens": 16000, "system": systeme,
-                 "messages": [{"role": "user", "content": question}]}
+        corps = {"model": modele, "max_tokens": 16000, "system": systeme, "messages": messages}
         if modele.startswith(("claude-opus", "claude-sonnet", "claude-haiku", "claude-fable")):
             corps["output_config"] = {"effort": "low"}  # tâches courtes : réponse rapide
         reponse = _requete("POST", f"{racine}/messages", _entetes(fournisseur, cle), corps, entetes_recus)
@@ -152,8 +153,7 @@ def demander(fournisseur: Fournisseur, cle: str, modele: str, systeme: str, ques
             raise ErreurIA("l'IA a refusé de répondre à cette demande")
         morceaux = [b.get("text", "") for b in reponse.get("content", []) if b.get("type") == "text"]
     else:
-        corps = {"model": modele, "messages": [{"role": "system", "content": systeme},
-                                               {"role": "user", "content": question}]}
+        corps = {"model": modele, "messages": [{"role": "system", "content": systeme}, *messages]}
         reponse = _requete("POST", f"{racine}/chat/completions", _entetes(fournisseur, cle), corps, entetes_recus)
         morceaux = [(c.get("message") or {}).get("content") or "" for c in reponse.get("choices", [])[:1]]
     texte = "".join(morceaux).strip()
